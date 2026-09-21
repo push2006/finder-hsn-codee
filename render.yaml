@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: hsn-finder
+    runtime: static
+    staticPublishPath: .
+    autoDeploy: true
