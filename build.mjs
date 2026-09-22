@@ -24,6 +24,8 @@ const plain = (file, name) => read(file).replace(new RegExp('export const ' + na
 const gst = plain('gstmap.ts', 'GST_MAP');
 const trade = plain('trademap.ts', 'TRADE_CH');
 const trade6 = plain('tradevalues.ts', 'TRADE6');
+const tradepartners = plain('tradepartners.ts', 'TRADE_PARTNERS')
+  .replace('export const TRADE_PARTNERS_YEAR =', 'const TRADE_PARTNERS_YEAR =');
 const scomet = plain('scomet.ts', 'SCOMET');
 const alias = plain('aliases.ts', 'ALIASES');
 const sanc = read('sanctions.ts')
@@ -61,6 +63,7 @@ var DATA_B64 = "${dataB64}";
 ${gst}
 ${trade}
 ${trade6}
+${tradepartners}
 ${scomet}
 ${alias}
 ${sanc}
