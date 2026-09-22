@@ -10,7 +10,8 @@ const read = (p) => fs.readFileSync(path.join(SRC, p), 'utf8');
 
 // 1. data chunks -> one base64 string
 const parts = [];
-for (let n = 0; n < 66; n++) {
+for (let n = 0; ; n++) {
+  if (!fs.existsSync(path.join(SRC, `datachunk${n}.ts`))) break;
   const t = read(`datachunk${n}.ts`);
   const m = t.match(/export const CHUNK\d+ = "([A-Za-z0-9+/=]+)";/);
   if (!m) throw new Error(`chunk ${n} not found`);
