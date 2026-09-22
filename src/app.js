@@ -10,6 +10,7 @@ import { TRADE6 } from './tradevalues';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
+import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -1015,6 +1016,57 @@ function seasonHtml(c6) {
   return seasonChart(sm, sx) + '<p>Seasonality ' + TRADE_SEASON_YEARS[0] + '-' + TRADE_SEASON_YEARS[1] + ' (monthly average): combined trade peaks in <strong>' + MONTH_NAMES[pk] + '</strong> and dips in <strong>' + MONTH_NAMES[tr] + '</strong>' + (swing > 25 ? ' - a ' + swing + '% swing around the average month; plan inventory and contracts around it' : ' - fairly even across the year') + '.</p>';
 }
 
+
+const FTA_UAE_YEAR_NOW = 4;
+function ftaPct(s) { const m = /^(\d+(?:\.\d+)?)%$/.exec(s || ''); return m ? parseFloat(m[1]) : null; }
+function ftaHtml(code) {
+  const c6 = code ? code.slice(0, 6) : '';
+  if (!c6) return '';
+  const uae = [], au = [];
+  for (const k in FTA_UAE) { if (k.slice(0, 6) === c6) uae.push(k); }
+  for (const k in FTA_AU) { if (k.slice(0, 6) === c6) au.push(k); }
+  const uaeUnp = FTA_UAE_UNPARSED.some((k) => k.slice(0, 6) === c6);
+  if (!uae.length && !au.length && !uaeUnp) return '';
+  let bestSave = 0, bestWhere = '';
+  let rows = '';
+  uae.sort();
+  for (const k of uae) {
+    const v = FTA_UAE[k];
+    const base = v[0], cat = v[1], now = v[2 + FTA_UAE_YEAR_NOW];
+    let line;
+    if (cat === 'EX') line = 'no CEPA concession - normal MFN rate applies';
+    else if (cat === 'PG') line = 'imports of this line are prohibited in the UAE';
+    else if (cat === 'SG') line = 'special goods - concession runs through a quota/special route, see the annex';
+    else {
+      const b = ftaPct(base), n = ftaPct(now);
+      if (cat === 'E(0)') line = 'duty-free since 1 May 2022';
+      else if (b !== null && n !== null && n < b) {
+        line = 'MFN ' + esc(base) + ' &rarr; <strong>' + esc(now) + ' now</strong>, ' + esc(v[11]) + ' from year 10';
+        if (b - n > bestSave) { bestSave = b - n; bestWhere = 'UAE'; }
+      } else line = 'MFN ' + esc(base) + ' &rarr; <strong>' + esc(now) + ' now</strong>';
+    }
+    rows += '<tr><td class="num">' + esc(k) + '</td><td>' + line + '</td></tr>';
+  }
+  if (uaeUnp) rows += '<tr><td></td><td class="muted">one or more UAE lines under this heading were not machine-readable - check the official annex</td></tr>';
+  const uaeBlock = '<h4>India-UAE CEPA - duty when selling to the UAE</h4><table class="fta-t">' + rows + '</table>';
+  rows = '';
+  au.sort();
+  for (const k of au) {
+    const v = FTA_AU[k];
+    const line = v[1] === 'A'
+      ? 'MFN ' + esc(v[0]) + ' &rarr; <strong>duty-free</strong> since 29 Dec 2022'
+      : 'MFN ' + esc(v[0]) + ' &rarr; <strong>duty-free</strong> from 1 Jan 2026 (5 equal annual cuts)';
+    if (v[1] === 'B5') { const b = ftaPct(v[0]); if (b && b > bestSave) { bestSave = b; bestWhere = 'Australia'; } }
+    rows += '<tr><td class="num">' + esc(k) + '</td><td>' + line + '</td></tr>';
+  }
+  const auBlock = '<h4>Australia-India ECTA - duty when selling to Australia</h4><table class="fta-t">' + rows + '</table>';
+  const lead = bestSave > 0
+    ? '<p>FTA advantage: save up to <strong>' + bestSave.toFixed(1).replace(/\.0$/, '') + '%</strong> duty into ' + bestWhere + ' under the agreements below, versus their normal MFN rate.</p>'
+    : '<p>These products already enter at low or zero duty under the agreements below.</p>';
+  return '<div class="detail-sec fta-sec"><h3>FTA duty advantages (India agreements)</h3>' + lead + uaeBlock + auBlock +
+    '<p class="muted">Sources: India-UAE CEPA Appendix 2A-A (Tariff Schedule of UAE, in force 1 May 2022; "now" = agreement year 5, May 2026 - Apr 2027); Australia-India ECTA Annex 2A (Tariff Schedule of Australia, in force 29 Dec 2022). Preferential rates need a certificate of origin. Baked into the dataset, not fetched live.</p></div>';
+}
+
 function tradeCardHtml(chapter, code) {
   const t = TRADE_CH[chapter];
   const c6 = code ? code.slice(0, 6) : '';
@@ -1607,6 +1659,7 @@ function detailHtml(idx) {
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += tradeCardHtml(e[4], e[1]);
+  s += ftaHtml(e[1]);
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +

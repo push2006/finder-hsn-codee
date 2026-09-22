@@ -302,3 +302,7 @@ a { color: var(--ds-teal); }
 .lc-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lc-table .lc-total td { font-weight: 700; }
 .lc-src { margin-top: 10px; }
+.fta-t { border-collapse: collapse; width: 100%; font-size: 13px; margin: 4px 0 10px; }
+.fta-t td { padding: 4px 8px; border-bottom: 1px solid var(--ds-hairline, #e5e0d8); vertical-align: top; }
+.fta-t td.num { font-variant-numeric: tabular-nums; white-space: nowrap; color: #555; }
+.fta-sec h4 { margin: 10px 0 4px; }

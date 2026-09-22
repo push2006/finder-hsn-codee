@@ -30,6 +30,9 @@ const tradetrend = plain('tradetrend.ts', 'TRADE_TREND')
   .replace('export const TRADE_TREND_YEARS =', 'const TRADE_TREND_YEARS =');
 const tradeseason = plain('tradeseson.ts', 'TRADE_SEASON')
   .replace('export const TRADE_SEASON_YEARS =', 'const TRADE_SEASON_YEARS =');
+const fta = plain('fta.ts', 'FTA_UAE')
+  .replace('export const FTA_UAE_UNPARSED: string[] =', 'const FTA_UAE_UNPARSED =')
+  .replace('export const FTA_AU: Record<string, string[]> =', 'const FTA_AU =');
 const scomet = plain('scomet.ts', 'SCOMET');
 const alias = plain('aliases.ts', 'ALIASES');
 const sanc = read('sanctions.ts')
@@ -70,6 +73,7 @@ ${trade6}
 ${tradepartners}
 ${tradetrend}
 ${tradeseason}
+${fta}
 ${scomet}
 ${alias}
 ${sanc}
