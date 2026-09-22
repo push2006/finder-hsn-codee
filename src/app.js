@@ -597,20 +597,15 @@ function familyOf(code) {
 function groupFamilies(db, idxs) {
   const rep = new Map();
   const order = [];
-  const score = (e, anchorLen) => (e[0] === 0 ? 0 : 1000) + Math.abs(e[1].length - anchorLen) * 10 + e[1].length;
+  // The direct deepest national line represents the family; the WCO/parent
+  // heading is used only when no national line matched (direct-code spec).
+  const score = (e) => (e[0] === 0 ? 1000000000 : 0) + e[0] * 1000000 + (30 - e[1].length) * 100;
   for (const i of idxs) {
     const e = db.entries[i];
     const fk = familyOf(e[1]);
-    const anchor = fk.slice(1);
-    const wco = db.keyToIdx.get('0:' + anchor);
-    if (wco !== undefined) {
-      if (!rep.has(fk)) { rep.set(fk, wco); order.push(fk); }
-      continue;
-    }
-    const anchorLen = anchor.length;
     const cur = rep.get(fk);
     if (cur === undefined) { rep.set(fk, i); order.push(fk); continue; }
-    if (score(e, anchorLen) < score(db.entries[cur], anchorLen)) rep.set(fk, i);
+    if (score(e) < score(db.entries[cur])) rep.set(fk, i);
   }
   return order.map((fk) => rep.get(fk));
 }
