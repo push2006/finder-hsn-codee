@@ -198,17 +198,30 @@ async function groqPost(apiKey, prompt, opts) {
 }
 async function aiPickText(prompt, opts) {
   aiLiveSearch = false;
-  if (V.apiKey) { aiSharedKey = false; aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false); }
+  if (V.apiKey) {
+    const p = ownProvider();
+    aiSharedKey = false; aiProviderUsed = p;
+    try { return p === 'groq' ? await groqPost(V.apiKey, prompt, opts) : await geminiText(V.apiKey, prompt, opts, false); }
+    catch (err) {
+      if (/not accepted|refused/i.test(err.message || '')) throw err;
+      const alt = builtinKeys(p === 'groq' ? 'gemini' : 'groq');
+      if (alt.length) { aiSharedKey = true; aiProviderUsed = p === 'groq' ? 'gemini' : 'groq'; return p === 'groq' ? geminiText(alt, prompt, opts, false) : groqPost(alt, prompt, opts); }
+      throw err;
+    }
+  }
   if (AI_PROXY_URL) {
     aiSharedKey = false;
     try { aiProviderUsed = 'groq'; return await groqPost('', prompt, opts); }
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'gemini'; return geminiText('', prompt, opts, false); }
   }
+  const errs = [];
   const gk = builtinKeys('groq');
-  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; return groqPost(gk, prompt, opts); }
+  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; try { return await groqPost(gk, prompt, opts); } catch (err) { errs.push(err); } }
   const mk = builtinKeys('gemini');
-  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; return geminiText(mk, prompt, opts, false); }
-  throw new Error('no-ai');
+  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; try { return await geminiText(mk, prompt, opts, false); } catch (err) { errs.push(err); } }
+  if (!errs.length) throw new Error('no-ai');
+  if (errs.every((e) => /limit reached/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
+  throw errs[errs.length - 1];
 }
 async function aiReportText(prompt, grounded, opts) {
   aiLiveSearch = false;
@@ -221,21 +234,28 @@ async function aiReportText(prompt, grounded, opts) {
     catch (err) { aiLiveSearch = false; return groqPost(key, prompt, opts); }
   };
   if (V.apiKey) {
-    if (ownProvider() === 'groq') return groqReport(V.apiKey, false);
-    return geminiReport(V.apiKey, false);
+    const p = ownProvider();
+    try { return p === 'groq' ? await groqReport(V.apiKey, false) : await geminiReport(V.apiKey, false); }
+    catch (err) {
+      if (/not accepted|refused/i.test(err.message || '')) throw err;
+      const alt = builtinKeys(p === 'groq' ? 'gemini' : 'groq');
+      if (alt.length) return p === 'groq' ? geminiReport(alt, true) : groqReport(alt, true);
+      throw err;
+    }
   }
   if (AI_PROXY_URL) {
     aiSharedKey = false;
     try { aiProviderUsed = 'gemini'; return await geminiText('', prompt, opts, grounded); }
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
   }
+  const errs = [];
   const gk = builtinKeys('groq');
-  if (gk.length) {
-    try { return await groqReport(gk, true); } catch (err) { if (!builtinKeys('gemini').length) throw err; }
-  }
+  if (gk.length) { try { return await groqReport(gk, true); } catch (err) { errs.push(err); } }
   const mk = builtinKeys('gemini');
-  if (mk.length) return geminiReport(mk, true);
-  throw new Error('no-ai');
+  if (mk.length) { try { return await geminiReport(mk, true); } catch (err) { errs.push(err); } }
+  if (!errs.length) throw new Error('no-ai');
+  if (errs.every((e) => /limit reached/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
+  throw errs[errs.length - 1];
 }
 
 /* ---------- small helpers ---------- */
@@ -1156,7 +1176,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
   const modeLine = aiUsed
     ? 'Live AI research edition - narrative sections written by ' + geminiAiLabel() + ' and labelled ANALYTICAL JUDGMENT; all codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file.'
     : 'Data edition - codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file; narrative sections show general chapter-level context. Add a free Gemini key on the code page to generate the full AI-written edition.' +
-      (opts.aiError ? ' (AI narrative was attempted but failed: ' + esc(opts.aiError) + ')' : '');
+      (opts.aiError ? ' (AI narrative sections were unavailable this time - the free AI services were busy or at their daily limit. Every figure, code and rate in this report is verified official data.)' : '');
 
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>' + esc(prod) + ' - Product Research Report</title><style>' +
