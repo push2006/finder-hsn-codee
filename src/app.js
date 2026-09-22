@@ -881,7 +881,7 @@ function tradeCardHtml(chapter, code) {
     (() => { const tr = c6 ? TRADE_TREND[c6] : null; if (!tr) return '';
       const yrs = tr.filter((r) => r[1] || r[2]); if (yrs.length < 2) return '';
       const first = yrs[0], last = yrs[yrs.length - 1];
-      const grow = (a, b) => (a > 0 && b > 0) ? ' (' + (b >= a ? 'up ' + (b / a).toFixed(1).replace(/\.0$/, '') + 'x' : 'down ' + Math.round((1 - b / a) * 100) + '%') + ')' : '';
+      const grow = (a, b) => { if (!(a > 0 && b > 0)) return ''; const r = b / a, p = Math.round((r - 1) * 100); const t = r >= 1.05 ? 'up ' + r.toFixed(1).replace(/\.0$/, '') + 'x' : p === 0 ? 'roughly flat' : (p > 0 ? 'up ' + p : 'down ' + (-p)) + '%'; return ' (' + t + ')'; };
       return '<p>Trend ' + first[0] + ' to ' + last[0] + ': imports ' + fmtUsd(first[1]) + ' to ' + fmtUsd(last[1]) + grow(first[1], last[1]) + ' - exports ' + fmtUsd(first[2]) + ' to ' + fmtUsd(last[2]) + grow(first[2], last[2]) + '</p>'; })() +
     '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners and volumes where baked. Baked into the dataset, not fetched live.</p></div>';
 }
@@ -1152,7 +1152,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
     (() => { const tr = TRADE_TREND[e[1].slice(0, 6)]; if (!tr) return '';
       const yrs = tr.filter((r) => r[1] || r[2]); if (!yrs.length) return '';
       const first = yrs[0], last = yrs[yrs.length - 1];
-      const grow = (a, b) => (a > 0 && b > 0) ? (b >= a ? 'up ' + (b / a).toFixed(1).replace(/\.0$/, '') + 'x' : 'down ' + Math.round((1 - b / a) * 100) + '%') : 'n/a';
+      const grow = (a, b) => { if (!(a > 0 && b > 0)) return 'n/a'; const r = b / a, p = Math.round((r - 1) * 100); return r >= 1.05 ? 'up ' + r.toFixed(1).replace(/\.0$/, '') + 'x' : p === 0 ? 'roughly flat' : (p > 0 ? 'up ' + p : 'down ' + (-p)) + '%'; };
       const rows = yrs.map((r) => [String(r[0]), 'imports ' + escA(fmtUsd(r[1])) + ' - exports ' + escA(fmtUsd(r[2]))]);
       rows.push(['Change ' + first[0] + ' to ' + last[0], 'imports ' + grow(first[1], last[1]) + ' - exports ' + grow(first[2], last[2])]);
       return '<h3>India trade trend, HS ' + escA(e[1].slice(0, 6)) + ', ' + TRADE_TREND_YEARS[0] + '-' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1] + ' ' + tplTag('fact') + '</h3>' + factTable(rows); })() +
@@ -1631,12 +1631,24 @@ async function classifyRun() {
   if (hasAi) {
     try {
       const prompt = 'You are an expert customs tariff classifier using the WCO Harmonized System 2022. A trader describes a product: "' + text.replace(/"/g, "'") + '". Suggest up to 5 most likely 6-digit HS codes (subheading level), best first. Return ONLY a JSON array, no Markdown, no commentary: [{"code":"280421","why":"one short line"}]. Codes must be real HS 2022 subheadings.';
-      let txt = (await aiPickText(prompt, { temperature: 0, maxTokens: 4000 }) /* thinking models burn tokens before the JSON; keep headroom */).trim().replace(/```[a-z]*/gi, '');
-      const a = txt.indexOf('['); const b = txt.lastIndexOf(']');
-      if (a < 0 || b <= a) throw new Error('no JSON');
-      const arr = JSON.parse(txt.slice(a, b + 1));
-      const clean = arr.filter((h) => h && /^\d{6}$/.test(String(h.code))).slice(0, 5);
-      if (!clean.length) throw new Error('no valid codes');
+      /* QA hardening: retry once on a malformed/empty AI reply; normalize dotted or 8-digit codes; dedupe. */
+      let clean = null, lastErr = null;
+      for (let attempt = 0; attempt < 2 && !clean; attempt++) {
+        try {
+          const txt = (await aiPickText(prompt, { temperature: 0, maxTokens: 4000 })).trim().replace(/```[a-z]*/gi, '');
+          const a = txt.indexOf('['); const b = txt.lastIndexOf(']');
+          if (a < 0 || b <= a) throw new Error('no JSON');
+          const arr = JSON.parse(txt.slice(a, b + 1));
+          const seen = {};
+          const c2 = arr.map((h) => {
+            const d = h ? String(h.code).replace(/\D/g, '') : '';
+            return { code: d.length === 6 ? d : (d.length === 8 ? d.slice(0, 6) : ''), why: h ? String(h.why || '') : '' };
+          }).filter((h) => /^\d{6}$/.test(h.code) && !seen[h.code] && (seen[h.code] = 1)).slice(0, 5);
+          if (!c2.length) throw new Error('no valid codes');
+          clean = c2;
+        } catch (e) { lastErr = e; }
+      }
+      if (!clean) throw lastErr;
       V.clsHits = clean;
       V.clsCross = null;
       if (aiHasBoth()) {
