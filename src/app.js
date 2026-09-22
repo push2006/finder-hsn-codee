@@ -910,6 +910,61 @@ function boomBadgeHtml(e) {
   return '<div class="alert-banner boom-badge no-print"><strong>Booming product</strong> - India ' + esc(notes.join(' and ')) + ' (UN Comtrade, min $25M traded).</div>';
 }
 
+// Supply-chain risk scan - composite, honest about coverage.
+function riskHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const tp = TRADE_PARTNERS[c6];
+  const digs = e[1].replace(/\D/g, '');
+  const rows = [];
+  let score = 0;
+  if (tp) {
+    const conc = (list, start, mid) => {
+      if (!list || !list.length) return;
+      const tot = list.reduce((a, pp) => a + pp[1], 0);
+      if (!tot) return;
+      const top1 = list[0][1] / tot;
+      const hhi = list.reduce((a, pp) => a + Math.pow(pp[1] / tot, 2), 0);
+      const lvl = top1 >= 0.6 ? 2 : top1 >= 0.4 ? 1 : 0;
+      score += lvl;
+      rows.push([lvl, start + ' concentration: ' + list[0][0] + ' alone takes ' + Math.round(top1 * 100) + '% of India\'s top-5 ' + mid + ' for this product (' + fmtUsd(list[0][1]) + ', 2025)' + (hhi >= 0.35 ? ' - concentrated supply base.' : hhi >= 0.2 ? ' - moderately spread.' : ' - well spread.')]);
+    };
+    conc(tp.m, 'Import-source', 'import sources');
+    conc(tp.x, 'Export-market', 'export markets');
+    const seen = {};
+    for (const lst of [tp.m || [], tp.x || []]) {
+      for (const pp of lst) {
+        const z = SANC_ZONES[pp[0]];
+        if (z && !seen[pp[0]]) {
+          seen[pp[0]] = 1;
+          score += z[0] === 1 ? 2 : 1;
+          rows.push([z[0] === 1 ? 2 : 1, 'Sanctions zone: ' + pp[0] + ' (' + fmtUsd(pp[1]) + ' of India trade in this product, 2025) is a ' + (z[0] === 1 ? 'RED' : 'amber') + ' zone partner. ' + z[3]]);
+        }
+      }
+    }
+  }
+  const addHits = [];
+  for (const m of ADD_MEASURES) {
+    for (const h of m[0].split(',')) {
+      if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { addHits.push(m); break; }
+    }
+  }
+  if (addHits.length) {
+    score += 1;
+    rows.push([1, 'Anti-dumping: ' + addHits.length + ' in-force measure' + (addHits.length > 1 ? 's' : '') + ' cover this line (e.g. ' + addHits[0][1] + ' from ' + addHits[0][2] + ', duty ' + addHits[0][3] + ') - imports from those origins cost more.']);
+  }
+  const sc = e[0] === 1 ? SCOMET[e[1]] : null;
+  if (sc) {
+    score += 2;
+    rows.push([2, 'Export controlled: SCOMET entry ' + sc[0] + (sc[1] ? ' (' + sc[1] + ')' : '') + ' - exporting from India needs a DGFT authorisation.']);
+  }
+  if (!rows.length && !tp) return '';
+  const lvl = score >= 5 ? ['HIGH', '#a83232'] : score >= 3 ? ['MODERATE', '#b0761a'] : ['LOW', '#1e7a4f'];
+  rows.sort((a, b) => b[0] - a[0]);
+  return '<div class="detail-sec risk-card"><h3>Supply-chain risk scan <span class="risk-chip" style="background:' + lvl[1] + '">' + lvl[0] + '</span></h3>' +
+    (rows.length ? '<ul class="risk-list">' + rows.map((r) => '<li>' + esc(r[1]) + '</li>').join('') + '</ul>' : '<p>No concentration, sanctions-zone, anti-dumping or export-control flags for this product in the baked data.</p>') +
+    '<p class="muted">Composite of: India partner concentration (UN Comtrade 2025' + (tp ? '' : ' - partner breakdown not yet baked for this code, coverage grows daily') + '), sanctions-zone exposure of top partners, in-force anti-dumping measures (CBIC) and SCOMET export control (DGFT). Screening aid, not legal advice - verify before shipping.</p></div>';
+}
+
 function dutyCompareHtml(e) {
   const groups = linkage(S.db, e);
   const rows = groups.map((g) => {
@@ -1832,6 +1887,7 @@ function detailHtml(idx) {
   s += certsHtml(e[4]);
   s += addHtml(e[1], e[2]);
   s += boomBadgeHtml(e);
+  s += riskHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
   if (path.length > 1) {
