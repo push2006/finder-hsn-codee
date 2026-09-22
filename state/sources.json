@@ -1,0 +1,67 @@
+{
+ "HS": {
+  "fails": 0,
+  "sig": "h:\"1dcbbf5d76e871c\""
+ },
+ "IN": {
+  "fails": 0,
+  "sig": "h:Mon, 21 Sep 2026 10:39:25 GMT"
+ },
+ "US": {
+  "fails": 0,
+  "sig": "h:Wed, 02 Sep 2026 23:17:35 GMT"
+ },
+ "EU": {
+  "fails": 0,
+  "sig": "s:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "UK": {
+  "fails": 0,
+  "sig": "h:W/\"a93cd030126c121dd2b139f1d612dcf7\""
+ },
+ "KR": {
+  "fails": 1
+ },
+ "CA": {
+  "fails": 0,
+  "sig": "s:b681bb5554a207a53a454ebe79fe6b050f4fde0315270779a4f0f97fd5310fa0"
+ },
+ "JP": {
+  "fails": 0,
+  "sig": "h:Wed, 31 Dec 2025 14:01:41 GMT"
+ },
+ "AU": {
+  "fails": 0,
+  "sig": "s:a354b1bdcb9cc60abe7b3c30265b97b09751d2a026340bb3500c4ae4f47f6fb9"
+ },
+ "BR": {
+  "fails": 0,
+  "sig": "s:6c8c90f6b9aa7d2b730447af0c29f159d76161a2c516578100c448890c4a274a"
+ },
+ "TW": {
+  "fails": 0,
+  "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30"
+ },
+ "NZ": {
+  "fails": 0,
+  "sig": "s:909a8d8104d1c336cc2ee3550f8b5befbb5bad0e9cfcb910c6fcbbaf1a2cd114"
+ },
+ "NO": {
+  "fails": 0,
+  "sig": "s:1d7651bc7c34226d1582a83e6925e561f04afe154bd20c3891938f12ffd90034"
+ },
+ "SG": {
+  "fails": 1
+ },
+ "IL": {
+  "fails": 1
+ },
+ "MX": {
+  "fails": 0,
+  "sig": "s:e84c28b33303ac146da7f89e5a430a15654b04b37fb64706d8041ffbe933a030"
+ },
+ "UFLPA": {
+  "fails": 0,
+  "sig": "s:fbb4dc9da0ff1b7258f3f7dbeb323986d04a54ed41401111cd2f503928a8e272"
+ }
+}
