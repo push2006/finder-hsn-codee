@@ -13,6 +13,7 @@ import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
 import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
+import { SANC_ZONES, SANC_SRC } from './sanc';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -1072,6 +1073,32 @@ function ftaHtml(code) {
 
 
 const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'aluminium', 'steel', 'stainless', 'plastic', 'plastics', 'rubber', 'paper', 'glass', 'copper', 'iron', 'textile', 'textiles', 'chemical', 'chemicals', 'products', 'technical', 'grade', 'certain', 'other', 'originating', 'thereof']);
+
+function sancHtml() {
+  const keys = Object.keys(SANC_ZONES).sort();
+  let opts = '<option value="">Pick the buyer / supplier country</option>';
+  for (const k of keys) opts += '<option value="' + esc(k) + '">' + esc(k) + '</option>';
+  opts += '<option value="__other">Any other country</option>';
+  return '<div class="detail-sec"><h3>Sanctions zone - is the other country clear?</h3>' +
+    '<select class="sanc-pick" id="sanc-pick">' + opts + '</select><div id="sanc-out"></div>' +
+    '<p class="muted">' + esc(SANC_SRC) + '</p></div>';
+}
+function sancRender(country) {
+  const out = el('sanc-out');
+  if (!out) return;
+  if (!country) { out.innerHTML = ''; return; }
+  const z = SANC_ZONES[country];
+  if (!z) {
+    out.innerHTML = '<div class="sanc-card sanc-green"><strong>Green zone</strong> - no standing UN, US, EU or India country-level trade sanctions found for this country in the baked snapshot. Counterparty screening (SDN and entity lists) still applies to any deal.</div>';
+    return;
+  }
+  const cls = z[0] === 1 ? 'sanc-red' : 'sanc-amber';
+  const label = z[0] === 1 ? 'Red zone - treat as blocked' : 'Amber zone - targeted sanctions';
+  out.innerHTML = '<div class="sanc-card ' + cls + '"><strong>' + label + '</strong><p>' + esc(z[1]) + '</p>' +
+    '<p class="muted">Programs: ' + esc(z[2]) + '</p>' +
+    (z[3] ? '<p><strong>India angle:</strong> ' + esc(z[3]) + '</p>' : '') + '</div>';
+}
+
 function addHtml(code, desc) {
   const digs = String(code || '').replace(/\D/g, '');
   if (!digs) return '';
@@ -1717,6 +1744,7 @@ function detailHtml(idx) {
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
   s += addHtml(e[1], e[2]);
+  s += sancHtml();
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
@@ -1773,6 +1801,8 @@ function paintDetail() {
   if (el('lc-goods')) {
     const lcUpd = () => paintLanded(e);
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
+  const sancP = el('sanc-pick');
+  if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
     paintLanded(e);
   }
   el('ai-settings').addEventListener('click', () => { V.needKey = false; V.settingsOpen = !V.settingsOpen; paintDetail(); });
