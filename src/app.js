@@ -38,10 +38,12 @@ const DATA_BUILD = '2026-09-22-gen10';
 // one, geminiPost falls through to the next instead of failing the report.
 const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 let geminiModelUsed = '';
+let geminiGrounded = false;
 const geminiModelLabel = () => geminiModelUsed || GEMINI_MODELS[0];
+const geminiAiLabel = () => 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
-  let quotaHit = false;
+  let quotaHit = false, transientHit = false, netFail = false;
   for (const m of GEMINI_MODELS) {
     let res, data;
     try {
@@ -52,17 +54,21 @@ async function geminiPost(apiKey, body) {
       });
       data = await res.json().catch(() => ({}));
     } catch (err) {
-      throw new Error('No connection to the AI service. Check the internet connection and try again.');
+      netFail = true;
+      continue;
     }
     if (res.ok) { geminiModelUsed = m; return { data, model: m }; }
     const msg = (data && data.error && data.error.message) || ('Gemini API error ' + res.status);
     if (res.status === 400 && /key|api/i.test(msg)) throw new Error('The Gemini key was not accepted. Check the key in AI settings.');
     if (res.status === 403 && /key|permission|referer|restrict|identity/i.test(msg)) throw new Error('The Gemini key was refused. Check the key and its restrictions in AI settings.');
     if (res.status === 429) { quotaHit = true; continue; }
+    if (res.status === 503 || res.status === 500 || /high demand|overloaded|try again later/i.test(msg)) { transientHit = true; continue; }
     if (res.status === 404 || /not found|no longer|deprecated|not supported|unavailable|retired/i.test(msg)) continue;
     throw new Error('AI generation failed (' + msg + '). The offline data report still works - try again later.');
   }
   if (quotaHit) throw new Error('Free Gemini limit reached for now on every available model. Try again after the quota resets.');
+  if (transientHit) throw new Error('The AI models are busy right now. Wait a minute and try again.');
+  if (netFail) throw new Error('No connection to the AI service. Check the internet connection and try again.');
   throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
 }
 const API_KEY_STORE = 'hsn-gemini-api-key';
@@ -556,24 +562,32 @@ async function tplNarrative(db, idx, apiKey) {
     'Use Google Search for current facts. Rules: plain simple English, short sentences, readable on a phone. Never invent a number, price, company role, regulation or statistic; where product-specific data is unavailable, say so plainly and give clearly labelled general chapter-level context instead. Do not use markdown, headings, tables or bullet markers - plain paragraphs only.\n' +
     'Return ONLY a JSON object, no code fences, with exactly these keys. Every key except sec15 maps to one string of 2 to 4 short paragraphs (paragraphs separated by a blank line). sec15 maps to one string of newline-separated checklist lines, each line formatted as "Document name - issuing authority - why it is needed for this product":\n' +
     '{"sec01a":"product features and trade-offs - be concrete: physical forms, grades, quality markers, substitutes","sec02":"manufacturing and distribution - typical production process, input materials, manufacturing hubs, distribution channels","sec03":"global market, pricing and shortages - market size direction, price drivers, major exporting and importing countries, current shortages or gluts","sec04":"notable verified producer and buyer companies by country, only with evidence - if none verified, say data unavailable","sec05":"India market and realistic opportunities - demand pockets, buyer types, realistic entry routes for an Indian trader","sec06":"geopolitics and supply-chain risks - concentration risks, trade tensions, logistics chokepoints affecting this product","sec07":"technical uses by industry - which industries consume it and for what","sec08":"safety, storage and regulation - handling, shelf life, transport hazards, product-specific rules","sec09":"overall summary","sec10":"impact of trade in this product","sec11":"geopolitics deep view","sec12":"financial considerations - working capital, payment terms, price volatility, margin structure","sec13":"competitive advantages","sec14":"what is changing and the outlook","sec15":"export-import document checklist for trading this product to or from India","sec16":"logistics, packing and Incoterms guidance - typical packing, container or shipping mode, insurance notes, which Incoterms suit this trade and why","sec17":"recent policy changes and news from the last 12 months affecting this product - tariff changes, bans, new rules, with dates"}';
-  const { data } = await geminiPost(apiKey, {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    tools: [{ google_search: {} }],
+  const mkBody = (grounded) => ({
+    contents: [{ role: 'user', parts: [{ text: grounded ? prompt : prompt.replace('Use Google Search for current facts.', 'Use your built-in knowledge of this product, its industry and trade.') }] }],
     generationConfig: { temperature: 0.2, maxOutputTokens: 16000 },
+    ...(grounded ? { tools: [{ google_search: {} }] } : {}),
   });
-  const cand = data && data.candidates && data.candidates[0];
-  const text = ((cand && cand.content && cand.content.parts) || []).map((pt) => pt.text || '').join('\n');
-  const a = text.indexOf('{'), b = text.lastIndexOf('}');
-  if (a < 0 || b <= a) return null;
-  try {
-    const obj = JSON.parse(text.slice(a, b + 1));
-    return (obj && typeof obj === 'object') ? obj : null;
-  } catch { return null; }
+  // Grounded (Google Search) first; free-tier keys often have no grounding quota (429),
+  // so fall back to a plain model-knowledge call rather than failing the whole report.
+  for (const grounded of [true, false]) {
+    let data;
+    try { ({ data } = await geminiPost(apiKey, mkBody(grounded))); }
+    catch (err) { if (grounded) continue; throw err; }
+    const cand = data && data.candidates && data.candidates[0];
+    const text = ((cand && cand.content && cand.content.parts) || []).map((pt) => pt.text || '').join('\n');
+    const a = text.indexOf('{'), b = text.lastIndexOf('}');
+    if (a < 0 || b <= a) continue;
+    try {
+      const obj = JSON.parse(text.slice(a, b + 1));
+      if (obj && typeof obj === 'object') { geminiGrounded = grounded; return obj; }
+    } catch { /* try the next attempt */ }
+  }
+  return null;
 }
 
 function tplTag(kind) {
   if (kind === 'fact') return '<span class="tpl-tag fact">VERIFIED FACT</span>';
-  if (kind === 'ai') return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - AI-assisted (Gemini, Google Search grounded) - verify independently</span>';
+  if (kind === 'ai') return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - AI-assisted (' + geminiAiLabel() + ') - verify independently</span>';
   return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - general chapter-level context</span>';
 }
 function tplParas(s) {
@@ -685,7 +699,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
     '</section>';
   // 02
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">02</span> Manufacturing and distribution</h2>' + (has('sec02') ? tplNarr(narrative, 'sec02') : tplFallback('manufacturing and distribution', chTitle)) +
-    tplSrc([{ t: aiUsed && has('sec02') ? 'AI analysis (Gemini ' + geminiModelLabel() + ', Google Search grounded), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: aiUsed && has('sec02') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   // 03
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">03</span> Global market, pricing and shortages</h2>' +
     '<h3>Duty / rate for this product across ' + SYS.length + ' official systems ' + tplTag('fact') + '</h3>' +
@@ -697,11 +711,11 @@ function buildTemplateReport(db, idx, narrative, opts) {
     tplTradeChart(trade6, trade, e[1].slice(0, 6)) +
     tplDutyChart(rated) +
     (has('sec03') ? '<h3>Market analysis</h3>' + tplNarr(narrative, 'sec03') : tplFallback('market and pricing', chTitle)) +
-    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }, { t: 'UN Comtrade annual data, reporter India, partner World, ' + TRADE_YEAR + ' (baked into this file)', u: 'https://comtradeplus.un.org/' }].concat(has('sec03') ? [{ t: 'AI analysis (Gemini, Google Search grounded), generated ' + today }] : [])) +
+    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }, { t: 'UN Comtrade annual data, reporter India, partner World, ' + TRADE_YEAR + ' (baked into this file)', u: 'https://comtradeplus.un.org/' }].concat(has('sec03') ? [{ t: 'AI analysis (' + geminiAiLabel() + '), generated ' + today }] : [])) +
     '</section>';
   // 04
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">04</span> Buyers and sellers by country</h2>' + (has('sec04') ? tplNarr(narrative, 'sec04') : tplFallback('buyer and seller company', chTitle)) +
-    tplSrc([{ t: has('sec04') ? 'AI analysis (Gemini, Google Search grounded), generated ' + today + ' - verify every company claim independently before contacting' : 'No verified company-level data in this file' }]) + '</section>';
+    tplSrc([{ t: has('sec04') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify every company claim independently before contacting' : 'No verified company-level data in this file' }]) + '</section>';
   // 05
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">05</span> India market and opportunities</h2>' +
     (e[0] === 1 && g ? '<h3>India duty and tax position ' + tplTag('fact') + '</h3>' + factTable([['IGST', '<strong>' + escA(g[0]) + '</strong> - ' + escA(g[1])], ['Legal basis', 'Notification No. 9/2025-Integrated Tax (Rate), 17 Sep 2025']]) : '') +
@@ -766,17 +780,17 @@ function buildTemplateReport(db, idx, narrative, opts) {
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">15</span> Documents and compliance checklist</h2>' +
     '<p class="muted">Paperwork typically needed to move this product to or from India. AI-compiled from current official guidance - confirm each item with your CHA or DGFT before shipping.</p>' +
     (has('sec15') ? tplTag('ai') + tplCheck(narrative.sec15) : tplFallback('document checklist', chTitle)) +
-    tplSrc([{ t: has('sec15') ? 'AI analysis (Gemini, Google Search grounded), generated ' + today + ' - confirm against DGFT/CBIC before shipping' : 'No section-specific source - general context' }, { t: 'DGFT', u: 'https://www.dgft.gov.in/' }, { t: 'CBIC', u: 'https://www.cbic.gov.in/' }]) + '</section>';
+    tplSrc([{ t: has('sec15') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - confirm against DGFT/CBIC before shipping' : 'No section-specific source - general context' }, { t: 'DGFT', u: 'https://www.dgft.gov.in/' }, { t: 'CBIC', u: 'https://www.cbic.gov.in/' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">16</span> Logistics and Incoterms</h2>' +
     (has('sec16') ? tplNarr(narrative, 'sec16') : tplFallback('logistics and Incoterms', chTitle)) +
-    tplSrc([{ t: has('sec16') ? 'AI analysis (Gemini, Google Search grounded), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec16') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">17</span> Policy changes and news</h2>' +
     (has('sec17') ? tplNarr(narrative, 'sec17') : tplFallback('recent policy changes', chTitle)) +
-    tplSrc([{ t: has('sec17') ? 'AI analysis (Gemini, Google Search grounded), generated ' + today + ' - verify against the gazette or notification cited' : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec17') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify against the gazette or notification cited' : 'No section-specific source - general context' }]) + '</section>';
 
   const contents = TPL_SECTIONS.map((s) => '<li><span class="tpl-num">' + s[0] + '</span> ' + esc(s[1]) + '</li>').join('');
   const modeLine = aiUsed
-    ? 'Live AI research edition - narrative sections written by Gemini ' + geminiModelLabel() + ' with Google Search grounding and labelled ANALYTICAL JUDGMENT; all codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file.'
+    ? 'Live AI research edition - narrative sections written by ' + geminiAiLabel() + ' and labelled ANALYTICAL JUDGMENT; all codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file.'
     : 'Data edition - codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file; narrative sections show general chapter-level context. Add a free Gemini key on the code page to generate the full AI-written edition.' +
       (opts.aiError ? ' (AI narrative was attempted but failed: ' + esc(opts.aiError) + ')' : '');
 
@@ -840,7 +854,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
     '<div class="tpl-page"><h2>How to use this report</h2>' +
     '<p>Every statement in this report carries one of two labels:</p>' +
     '<p>' + tplTag('fact') + '</p><p><strong>Verified fact.</strong> Exact data baked into this file from official government and WCO sources: tariff codes, legal descriptions, duty rates, GST rates, India trade totals and sanctions list contents. Each carries its source and data date. Rates change - verify against the official source before filing.</p>' +
-    '<p>' + tplTag('ai') + '</p><p><strong>Analytical judgment.</strong> Interpretation and context - market reading, opportunities, risks. AI-assisted sections are written by Gemini with Google Search grounding on the report date; general-context sections are chapter-level orientation only. Judgment can be wrong; act on it only after your own verification.</p>' +
+    '<p>' + tplTag('ai') + '</p><p><strong>Analytical judgment.</strong> Interpretation and context - market reading, opportunities, risks. AI-assisted sections are written by ' + geminiAiLabel() + ' on the report date; general-context sections are chapter-level orientation only. Judgment can be wrong; act on it only after your own verification.</p>' +
     '<p class="muted">This report is research support, not legal, tax or customs advice.</p></div>' +
     secs +
     '<div class="tpl-foot">Push - Product Research Report - ' + esc(fmtCode(e[0], e[1])) + '</div>' +
