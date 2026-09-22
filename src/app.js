@@ -1071,19 +1071,19 @@ function ftaHtml(code) {
 
 
 
-const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'imports']);
+const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'aluminium', 'steel', 'stainless', 'plastic', 'plastics', 'rubber', 'paper', 'glass', 'copper', 'iron', 'textile', 'textiles', 'chemical', 'chemicals', 'products', 'technical', 'grade', 'certain', 'other', 'originating', 'thereof']);
 function addHtml(code, desc) {
   const digs = String(code || '').replace(/\D/g, '');
   if (!digs) return '';
   const hits = [];
   for (const m of ADD_MEASURES) {
     const lines = m[0].split(',');
-    let rel = false, exact = false;
+    let relLine = '', exact = false;
     for (const h of lines) {
       if (digs === h) exact = true;
-      else if (h.slice(0, 6) === digs.slice(0, 6) && digs.length >= 6) rel = true;
+      else if (h.slice(0, 6) === digs.slice(0, 6) && digs.length >= 6 && !relLine) relLine = h;
     }
-    if (exact || rel) hits.push({ m: m, rel: rel && !exact });
+    if (exact || relLine) hits.push({ m: m, rel: exact ? '' : relLine });
   }
   const dl = (' ' + String(desc || '').toLowerCase() + ' ');
   const ong = [];
@@ -1095,7 +1095,7 @@ function addHtml(code, desc) {
   let h = '<div class="detail-sec"><h3>Anti-dumping duty (India import)</h3><ul class="certs-l">';
   for (const x of hits.slice(0, 6)) {
     const m = x.m;
-    h += '<li><strong>' + esc(m[1]) + '</strong> from ' + esc(m[2]) + ': <strong>' + esc(m[3]) + '</strong> anti-dumping duty, ' + esc(m[6]).toLowerCase() + (m[5] ? ' until ' + esc(m[5]) : '') + ' <span class="muted">(CBIC notfn ' + esc(m[4]) + ')' + (x.rel ? ' - on related line ' + esc(m[0].split(',')[0]) + ', confirm your exact line' : '') + '</span></li>';
+    h += '<li><strong>' + esc(m[1]) + '</strong> from ' + esc(m[2]) + ': <strong>' + esc(m[3]) + '</strong> anti-dumping duty, ' + esc(m[6]).toLowerCase() + (m[5] ? ' until ' + esc(m[5]) : '') + ' <span class="muted">(CBIC notfn ' + esc(m[4]) + ')' + (x.rel ? ' - on related line ' + esc(x.rel) + ', confirm your exact line' : '') + '</span></li>';
   }
   h += '</ul>';
   if (ong.length) {
