@@ -4,12 +4,14 @@ import fs from 'fs';
 import zlib from 'zlib';
 import { execSync } from 'child_process';
 import { runRefresh } from './refresh.mjs';
+import { bakePartners } from './comtrade-partners.mjs';
 import { refreshSanctions } from './sanctions-refresh.mjs';
 import { monitor, issue } from './monitor.mjs';
 import vm from 'vm';
 import { expandAliases, draftGst } from './ai-agent.mjs';
 const step = async (n, f) => { try { const r = await f(); console.log('[ok]', n, JSON.stringify(r)); return r; } catch (e) { console.log('[skip]', n, e.message); return null; } };
 await step('trade+cleanup', runRefresh);
+await step('comtrade-partners', bakePartners);
 const sr = await step('sanctions', refreshSanctions);
 if (sr) {
   const HP = 'state/health.json', h = fs.existsSync(HP) ? JSON.parse(fs.readFileSync(HP, 'utf8')) : {};
@@ -33,6 +35,10 @@ const g = fs.readFileSync('src/gstmap.ts', 'utf8');
 const rates = [...g.matchAll(/\["([^"]+)",/g)].map((m) => m[1]);
 if (rates.length < 1000 || rates.some((r) => !/^\d+(\.\d+)?%$/.test(r))) fail('GST map malformed');
 if (fs.readFileSync('src/sanctions.ts', 'utf8').length < 3e6) fail('sanctions file too small');
+const tp = fs.readFileSync('src/tradepartners.ts', 'utf8');
+const tpCount = (tp.match(/^  '\d{6}':/gm) || []).length;
+const tpClaim = parseInt((tp.match(/coverage (\d+) codes/) || [0, '-1'])[1], 10);
+if (tpCount < 20 || tpCount !== tpClaim) fail('tradepartners malformed: entries ' + tpCount + ' vs header ' + tpClaim);
 const idx = fs.readFileSync('index.html', 'utf8');
 if (idx.length < 8e6 || !idx.includes('boot(document')) fail('index.html incomplete');
 for (const m of idx.matchAll(/<script>([\s\S]*?)<\/script>/g)) { try { new vm.Script(m[1]); } catch (e) { fail('JS syntax error in built page: ' + e.message); } }

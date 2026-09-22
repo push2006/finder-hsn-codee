@@ -7,6 +7,7 @@ import { DATA_B64 } from './data';
 import { GST_MAP } from './gstmap';
 import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
+import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -29,10 +30,13 @@ const SYS = [
   { tag: 'SG', name: 'Singapore STCCED 2022', src: 'Singapore Customs official Singapore Trade Classification, Customs and Excise Duties 2022 (excise applies only to alcohol, tobacco, fuel and motor vehicles, so most lines show no duty)', url: 'https://www.customs.gov.sg/businesses/harmonized-system-hs-classification-of-goods/' },
   { tag: 'IL', name: 'Israel Customs Tariff and Purchase Tax', src: 'Israel Tax Authority official customs book open dataset (data.gov.il, updated 21 Sep 2026), English edition', url: 'https://data.gov.il/dataset/customsbook' },
   { tag: 'MX', name: 'Mexico TIGIE (LIGIE unified)', src: 'Secretaria de Economia official unified LIGIE text with NICO statistical lines, 28 Jul 2025 base', url: 'https://www.snice.gob.mx/cs/avi/snice/ligie.info22.html' },
+  { tag: 'HK', name: 'Hong Kong HKHS 2026', src: 'Census and Statistics Department official Hong Kong Harmonized System 2026 CSV via data.gov.hk, bilingual. Hong Kong is a free port - no general import duty (excise applies only to liquor, tobacco, hydrocarbon oil and methyl alcohol), so lines show no duty', url: 'https://data.gov.hk/en-data/dataset/hk-censtatd-tablechart-b2xx0023' },
+  { tag: 'ZA', name: 'South Africa Customs Tariff (Schedule 1 Part 1)', src: 'South African Revenue Service (SARS) official Schedule 1 Part 1 (chapters 1-99) of the Customs and Excise Act, tariff dated 28 Aug 2026, general (MFN) rate column; EU/UK, EFTA, SADC, MERCOSUR and AfCFTA preferential columns not baked', url: 'https://www.sars.gov.za/legal-lprim-ce-sch1p1chpt1-to-99-schedule-no-1-part-1-chapters-1-to-99/' },
+  { tag: 'PE', name: 'Peru Arancel de Aduanas (NANDINA)', src: 'SUNAT official live tariff tables (NANDINA nomenclature + NANDTASA rates, aduanet servlet, downloaded 22 Sep 2026), ad valorem column; IGV and other internal taxes not baked', url: 'http://www.aduanet.gob.pe/ol-ad-tg/ServletTGConsultaTablas' },
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-22-gen10';
+const DATA_BUILD = '2026-09-22-gen14';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -66,6 +70,27 @@ const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEY
 let aiSharedKey = false;
 let aiProviderUsed = 'gemini';
 let aiLiveSearch = false;
+let aiCrossNote = null; // { by, ok, issues } - second-provider fact-check result for reports
+// Second-opinion check: when both providers' keys exist, the other provider reviews the answer.
+async function aiCrossCall(producer, prompt, opts) {
+  const target = producer === 'groq' ? 'gemini' : 'groq';
+  try {
+    if (V.apiKey && ownProvider() === target) {
+      return await (target === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false));
+    }
+    const pool = builtinKeys(target);
+    if (pool.length) return await (target === 'groq' ? groqPost(pool, prompt, opts) : geminiText(pool, prompt, opts, false));
+  } catch (e) { /* second opinion is best-effort; never blocks the answer */ }
+  return null;
+}
+const aiHasBoth = () => {
+  const set = new Set();
+  if (V.apiKey) set.add(ownProvider());
+  if (AI_PROXY_URL) { set.add('gemini'); set.add('groq'); }
+  if (builtinKeys('groq').length) set.add('groq');
+  if (builtinKeys('gemini').length) set.add('gemini');
+  return set.size >= 2;
+};
 const geminiAiLabel = () => (aiProviderUsed === 'groq'
   ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', ' + (aiLiveSearch ? 'live web search via Groq browser search (Exa)' : 'model knowledge only - no live search')
   : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '');
@@ -529,6 +554,12 @@ function bindOpens(scope) {
   });
 }
 
+function fmtQty(v, unit) {
+  const n = Number(v) || 0;
+  const a = Math.abs(n);
+  const s = a >= 1e9 ? (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B' : a >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : a >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(Math.round(n));
+  return s + (unit ? ' ' + unit : '');
+}
 function fmtUsd(v) {
   if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
   if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
@@ -708,11 +739,15 @@ function tradeCardHtml(chapter, code) {
   const t = TRADE_CH[chapter];
   const c6 = code ? code.slice(0, 6) : '';
   const t6 = c6 ? TRADE6[c6] : null;
-  if ((!t || (!t[0] && !t[1])) && !t6) return '';
+  const tp = c6 ? TRADE_PARTNERS[c6] : null;
+  if ((!t || (!t[0] && !t[1])) && !t6 && !tp) return '';
   return '<div class="detail-sec currency-card"><h3>India trade - ' + TRADE_YEAR + '</h3>' +
     (t6 ? '<p>This product, HS ' + esc(c6) + ': imports <strong>' + fmtUsd(t6[0]) + '</strong> - exports <strong>' + fmtUsd(t6[1]) + '</strong></p>' : '') +
     (t && (t[0] || t[1]) ? '<p>Whole chapter ' + esc(chapter) + ': imports <strong>' + fmtUsd(t[0]) + '</strong> - exports <strong>' + fmtUsd(t[1]) + '</strong>' + (t[1] > t[0] ? ' - India is a net exporter here.' : t[0] > t[1] * 3 ? ' - India relies heavily on imports here.' : '') + '</p>' : '') +
-    '<p class="muted">UN Comtrade annual data (reporter: India, partner: world), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Baked into the dataset, not fetched live.</p></div>';
+    (tp && tp.x.length ? '<p>Top export destinations: ' + tp.x.map((p) => esc(p[0]) + ' <strong>' + fmtUsd(p[1]) + '</strong>').join(', ') + '</p>' : '') +
+    (tp && tp.m.length ? '<p>Top import origins: ' + tp.m.map((p) => esc(p[0]) + ' <strong>' + fmtUsd(p[1]) + '</strong>').join(', ') + '</p>' : '') +
+    (tp && (tp.xq || tp.xn) ? '<p>Export volume: ' + (tp.xq ? fmtQty(tp.xq[0], tp.xq[1]) : '') + (tp.xq && tp.xn ? ' - ' : '') + (tp.xn ? 'net weight ' + fmtQty(tp.xn[0], 'kg') + (tp.xn[1] ? ' (estimated)' : '') : '') + '</p>' : '') +
+    '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners and volumes where baked. Baked into the dataset, not fetched live.</p></div>';
 }
 
 
@@ -724,6 +759,7 @@ const TPL_SECTIONS = [
   ['07', 'Technical uses'], ['08', 'Safety, storage and regulation'], ['09', 'Summary'],
   ['10', 'Impact'], ['11', 'Geopolitics'], ['12', 'Financial way'], ['13', 'Advantage'], ['14', 'Change'],
   ['15', 'Documents and compliance'], ['16', 'Logistics and Incoterms'], ['17', 'Policy changes and news'],
+  ['18', 'Crisis and risk watch'], ['19', 'Sanctions status'],
 ];
 const TPL_PAGE_H = 994; // A4 content px per printed page with the @page margins below
 
@@ -740,15 +776,32 @@ function tplDutyRows(db, e) {
   }).filter((r) => r !== null);
 }
 
+// Verified UN Comtrade facts for this code - injected into the report prompt so the AI
+// writes with real numbers, and reused for the second-provider fact-check.
+function comtradeFacts(e) {
+  const c6 = String(e[1]).slice(0, 6);
+  const t6 = TRADE6[c6], tp = TRADE_PARTNERS[c6];
+  if (!t6 && !tp) return '';
+  let f = 'Verified UN Comtrade figures, calendar ' + TRADE_PARTNERS_YEAR + ', HS ' + c6 + ', reporter India, USD: ';
+  if (t6) f += 'imports ' + fmtUsd(t6[0]) + ' (CIF), exports ' + fmtUsd(t6[1]) + '. ';
+  if (tp && tp.x.length) f += 'Top export destinations: ' + tp.x.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  if (tp && tp.m.length) f += 'Top import origins: ' + tp.m.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  if (tp && tp.xq) f += 'Export volume: ' + fmtQty(tp.xq[0], tp.xq[1]) + '. ';
+  if (tp && tp.xn) f += 'Export net weight: ' + fmtQty(tp.xn[0], 'kg') + (tp.xn[1] ? ' (estimated)' : '') + '. ';
+  return f + 'Use these exact figures and countries wherever trade values, volumes or top trading partners are discussed; never contradict them or invent different ones.\n';
+}
+
 async function tplNarrative(db, idx, apiKey) {
+  aiCrossNote = null;
   const e = db.entries[idx];
   const prompt = 'Write the narrative sections for a professional product research report on this exact tariff product.\n' +
     'Product: ' + pretty(e[2]) + '\n' +
     'Classification: ' + SYS[e[0]].name + ' code ' + fmtCode(e[0], e[1]) + ', chapter ' + e[4] + ' - ' + (db.chapterTitle.get(e[4]) || '') + '\n' +
+    comtradeFacts(e) +
     'Use Google Search for current facts. Rules: plain simple English, short sentences, readable on a phone. Never invent a number, price, company role, regulation or statistic; rough ranges and qualitative judgements are fine when labelled approximate. Where product-specific data is unavailable, say so plainly and give clearly labelled general chapter-level context instead. Be specific to THIS product: name real grades, hubs, ports, companies and rules; no filler that could fit any product. Do not use markdown or headings.\n' +
     'Tables: inside sections that compare or list facts, add ONE compact pipe table within that section\'s string, on its own lines: a header line like \'| Column | Column |\' then 3 to 6 row lines, cells separated by \'|\', 2 to 4 columns, no separator dashes line. Good spots: sec03 (exporter/importer countries with rough shares), sec04 (company | country | role), sec07 (industry | what it uses this product for), sec08 (hazard or rule | requirement), sec12 (cost item | typical range | note), sec13 (advantage | why it matters), sec16 (option | when to use it | note).\n' +
     'Return ONLY a JSON object, no code fences, with exactly these keys. Every key except sec15 maps to one string of 2 to 4 short paragraphs (paragraphs separated by a blank line). sec15 maps to one string of newline-separated checklist lines, each line formatted as "Document name - issuing authority - why it is needed for this product":\n' +
-    '{"sec01a":"product features and trade-offs - be concrete: physical forms, grades, quality markers, substitutes","sec02":"manufacturing and distribution - typical production process, input materials, manufacturing hubs, distribution channels","sec03":"global market, pricing and shortages - market size direction, price drivers, major exporting and importing countries, current shortages or gluts","sec04":"notable verified producer and buyer companies by country, only with evidence - if none verified, say data unavailable","sec05":"India market and realistic opportunities - demand pockets, buyer types, realistic entry routes for an Indian trader","sec06":"geopolitics and supply-chain risks - concentration risks, trade tensions, logistics chokepoints affecting this product","sec07":"technical uses by industry - which industries consume it and for what","sec08":"safety, storage and regulation - handling, shelf life, transport hazards, product-specific rules","sec09":"overall summary","sec10":"impact of trade in this product","sec11":"geopolitics deep view","sec12":"financial considerations - working capital, payment terms, price volatility, margin structure","sec13":"competitive advantages","sec14":"what is changing and the outlook","sec15":"export-import document checklist for trading this product to or from India","sec16":"logistics, packing and Incoterms guidance - typical packing, container or shipping mode, insurance notes, which Incoterms suit this trade and why","sec17":"recent policy changes and news from the last 12 months affecting this product - tariff changes, bans, new rules, with dates"}';
+    '{"sec01a":"product features and trade-offs - be concrete: physical forms, grades, quality markers, substitutes","sec02":"manufacturing and distribution - typical production process, input materials, manufacturing hubs, distribution channels","sec03":"global market, pricing and shortages - market size direction, price drivers, major exporting and importing countries, current shortages or gluts","sec04":"notable verified producer and buyer companies by country, only with evidence - if none verified, say data unavailable","sec05":"India market and realistic opportunities - demand pockets, buyer types, realistic entry routes for an Indian trader","sec06":"geopolitics and supply-chain risks - concentration risks, trade tensions, logistics chokepoints affecting this product","sec07":"technical uses by industry - which industries consume it and for what","sec08":"safety, storage and regulation - handling, shelf life, transport hazards, product-specific rules","sec09":"overall summary","sec10":"impact of trade in this product","sec11":"geopolitics deep view","sec12":"financial considerations - working capital, payment terms, price volatility, margin structure","sec13":"competitive advantages AND disadvantages - honest both sides for an Indian trader entering this trade","sec14":"what is changing and the outlook","sec15":"export-import document checklist for trading this product to or from India","sec16":"logistics, packing and Incoterms guidance - typical packing, container or shipping mode, insurance notes, which Incoterms suit this trade and why","sec17":"recent policy changes and news from the last 12 months affecting this product - tariff changes, bans, new rules, with dates","sec18":"crisis and risk watch - current conflicts, shipping disruptions, price shocks, export bans or supply crises affecting this product right now, with dates; if nothing notable is active, say so plainly","sec19":"sanctions and export-control status for this product and its major trade lanes - current measures, restricted or high-risk destinations, licensing notes for an Indian trader, with dates; state plainly if the product faces no major sanctions"}';
   // Grounded (Google Search) first; free-tier keys often have no grounding quota (429),
   // so fall back to a plain model-knowledge call rather than failing the whole report.
   const plainPrompt = prompt.replace('Use Google Search for current facts.', 'Use your built-in knowledge of this product, its industry and trade.');
@@ -767,6 +820,22 @@ async function tplNarrative(db, idx, apiKey) {
     if (obj && typeof obj === 'object') {
       for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/【[^】]*】/g, '').trim();
       geminiGrounded = grounded && aiProviderUsed === 'gemini';
+      if (aiHasBoth()) {
+        const by = aiProviderUsed === 'groq' ? 'Gemini' : 'Groq';
+        const facts = comtradeFacts(e).replace(/\n$/, '') || 'No Comtrade figures baked for this code yet.';
+        const chk = await aiCrossCall(aiProviderUsed,
+          'Fact-check an AI-written trade report against official figures. ' + facts + ' India GST and duty rates in the dataset are official. ' +
+          'Report JSON: ' + JSON.stringify(obj) + ' ' +
+          'Rules: flag only statements that contradict the verified figures above, or specific numbers, companies or dates presented as hard fact that nothing above supports (rough ranges and clearly approximate judgements are fine). Reply ONLY JSON: {"ok":true} or {"ok":false,"issues":["short issue 1","short issue 2"]} - at most 5 issues.',
+          { temperature: 0, maxTokens: 4000 });
+        if (chk) {
+          try {
+            const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
+            if (cj && cj.ok === true) aiCrossNote = { by, ok: true, issues: [] };
+            else if (cj && Array.isArray(cj.issues) && cj.issues.length) aiCrossNote = { by, ok: false, issues: cj.issues.slice(0, 5).map((x) => String(x)) };
+          } catch (e2) { /* unparseable second opinion - stay silent */ }
+        }
+      }
       return obj;
     }
   }
@@ -927,6 +996,13 @@ function buildTemplateReport(db, idx, narrative, opts) {
     dutyRows.map((r) => '<tr><td>' + escA(SYS[r.sys].name) + '</td><td>' + escA(fmtCode(r.sys, r.e[1])) + '</td><td>' + escA(levelName(r.e[1])) + '</td><td>' + escA(r.e[5] || 'No open rate') + '</td></tr>').join('') + '</tbody></table>' +
     '<p class="muted">' + rated.length + ' of ' + dutyRows.length + ' systems publish an open general rate here; preferential/FTA rates excluded. Rates change - verify on the official portal before filing.</p>' +
     (trade6 ? '<h3>India trade for this product, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports (CIF, USD)', escA(fmtUsd(trade6[0]))], ['Exports (USD)', escA(fmtUsd(trade6[1]))]]) : '') +
+    (() => { const tp6 = TRADE_PARTNERS[e[1].slice(0, 6)]; if (!tp6) return '';
+      const rows = [];
+      for (const p of tp6.x) rows.push(['Exports to ' + p[0], escA(fmtUsd(p[1]))]);
+      for (const p of tp6.m) rows.push(['Imports from ' + p[0], escA(fmtUsd(p[1]))]);
+      if (tp6.xq) rows.push(['Export volume', escA(fmtQty(tp6.xq[0], tp6.xq[1]))]);
+      if (tp6.xn) rows.push(['Export net weight', escA(fmtQty(tp6.xn[0], 'kg')) + (tp6.xn[1] ? ' (estimated)' : '')]);
+      return rows.length ? '<h3>Top trading partners and volumes, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable(rows) : ''; })() +
     (trade ? '<h3>India trade in chapter ' + escA(e[4]) + ', calendar ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports (CIF, USD)', escA(fmtUsd(trade[0]))], ['Exports (USD)', escA(fmtUsd(trade[1]))], ['Balance', trade[1] > trade[0] ? 'India is a net exporter in this chapter.' : (trade[0] > trade[1] * 3 ? 'India relies heavily on imports in this chapter.' : 'Mixed trade balance.')]]) : '') +
     tplTradeChart(trade6, trade, e[1].slice(0, 6)) +
     tplDutyChart(rated) +
@@ -997,6 +1073,10 @@ function buildTemplateReport(db, idx, narrative, opts) {
     (aiUsed && aiProviderUsed === 'groq' ? '<p>' + tplTag('AI') + ' ' + (aiLiveSearch
       ? 'AI-written market sections in this report used live web search today (Groq browser search, powered by Exa). Inline citation markers were removed for readability; verify live claims against the official sources cited in each section before acting.'
       : 'AI-written market sections in this report used the Groq model\u2019s built-in knowledge only - no live web search was performed. Treat them as leads and verify against current official sources.') + '</p>' : '') +
+    (aiUsed && aiCrossNote ? (aiCrossNote.ok
+      ? '<p>' + tplTag('fact') + ' Cross-checked: a second AI provider (' + escA(aiCrossNote.by) + ') reviewed this report against the dataset and UN Comtrade figures - no contradictions found.</p>'
+      : '<p>' + tplTag('ai') + ' Second opinion (' + escA(aiCrossNote.by) + ') flags - verify before acting:</p><ul>' + aiCrossNote.issues.map((i) => '<li>' + escA(i) + '</li>').join('') + '</ul>') : '') +
+    (aiUsed && !aiCrossNote && !aiHasBoth() ? '<p>' + tplTag('ai') + ' AI sections were written by a single provider and not cross-checked. Add both a Gemini and a Groq key to enable the second-opinion check.</p>' : '') +
     (has('sec14') ? '<h3>What is changing</h3>' + tplNarr(narrative, 'sec14') : tplFallback('change and outlook', chTitle)) +
     tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec14') ? [{ t: 'AI analysis, generated ' + today }] : [])) + '</section>';
 
@@ -1010,6 +1090,15 @@ function buildTemplateReport(db, idx, narrative, opts) {
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">17</span> Policy changes and news</h2>' +
     (has('sec17') ? tplNarr(narrative, 'sec17') : tplFallback('recent policy changes', chTitle)) +
     tplSrc([{ t: has('sec17') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify against the gazette or notification cited' : 'No section-specific source - general context' }]) + '</section>';
+  // 18-19 (user wishlist: crisis watch + sanctions status, live-searched when a Groq key exists)
+  secs += '<section class="tpl-sec"><h2><span class="tpl-num">18</span> Crisis and risk watch</h2>' +
+    (has('sec18') ? tplNarr(narrative, 'sec18') : tplFallback('crisis and risk', chTitle)) +
+    tplSrc([{ t: has('sec18') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - fast-moving situation, verify before acting' : 'No section-specific source - general context' }]) + '</section>';
+  secs += '<section class="tpl-sec"><h2><span class="tpl-num">19</span> Sanctions status</h2>' +
+    (scomet ? '<p>' + tplTag('fact') + ' This code is on India\u2019s SCOMET export-control list - export licensing applies. See the Documents section.</p>' : '') +
+    (has('sec19') ? tplNarr(narrative, 'sec19') : tplFallback('sanctions status', chTitle)) +
+    '<p class="muted">Counterparty screening: this file\u2019s main page carries an offline checker against the US OFAC SDN, EU consolidated and DHS UFLPA lists - screen every buyer and seller there before dealing.</p>' +
+    tplSrc([{ t: has('sec19') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify against OFAC, EU and Indian official notices' : 'No section-specific source - general context' }]) + '</section>';
 
   const contents = TPL_SECTIONS.map((s) => '<li><span class="tpl-num">' + s[0] + '</span> ' + esc(s[1]) + '</li>').join('');
   const modeLine = aiUsed
@@ -1342,7 +1431,10 @@ function classifyResHtml() {
       return '<li><div class="classify-why"><strong>HS ' + esc(code.replace(/(\d{4})(\d{2})/, '$1.$2')) + '</strong> - ' + esc(h.why) + '</div>' +
         (rows.length ? rows.map((i) => { const e = db.entries[i]; return '<button class="result-link linkbtn-block" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button>'; }).join('') : '<span class="muted">No matching line in this dataset - try the code search.</span>') +
         '</li>';
-    }).join('') + '</ul>';
+    }).join('') + '</ul>' +
+    (V.clsCross ? '<p class="muted">' + (V.clsCross.agree
+      ? 'Cross-checked by ' + esc(V.clsCross.by) + ' - it agrees with these picks.'
+      : 'Second opinion (' + esc(V.clsCross.by) + '): suggests HS ' + esc(V.clsCross.better.replace(/(\d{4})(\d{2})/, '$1.$2')) + (V.clsCross.why ? ' - ' + esc(V.clsCross.why) : '') + '. Both readings shown on purpose - compare duties before deciding.') + '</p>' : '');
   }
   if (V.clsOffline) {
     if (!V.clsOffline.length) return '<p class="muted">No offline matches. Try different words.</p>';
@@ -1366,7 +1458,7 @@ function clsRowsFor(code) {
 async function classifyRun() {
   const text = V.q.trim();
   if (!text || V.clsBusy) return;
-  V.clsBusy = true; V.clsErr = null; V.clsHits = null; V.clsOffline = null;
+  V.clsBusy = true; V.clsErr = null; V.clsHits = null; V.clsOffline = null; V.clsCross = null;
   paintClassify();
   const hasAi = aiAvailable();
   if (hasAi) {
@@ -1379,6 +1471,20 @@ async function classifyRun() {
       const clean = arr.filter((h) => h && /^\d{6}$/.test(String(h.code))).slice(0, 5);
       if (!clean.length) throw new Error('no valid codes');
       V.clsHits = clean;
+      V.clsCross = null;
+      if (aiHasBoth()) {
+        const by = aiProviderUsed === 'groq' ? 'Gemini' : 'Groq';
+        const chk = await aiCrossCall(aiProviderUsed,
+          'Product: "' + text.replace(/"/g, "'") + '". Another AI suggested these HS 2022 6-digit codes for it, best first: ' + clean.map((h) => h.code + ' (' + h.why + ')').join('; ') + '. Are these real HS 2022 subheadings and is the first one the best fit? Reply ONLY JSON: {"agree":true} or {"agree":false,"better":"6-digit code","why":"one short line"}.',
+          { temperature: 0, maxTokens: 4000 });
+        if (chk) {
+          try {
+            const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
+            if (cj && cj.agree === true) V.clsCross = { by, agree: true };
+            else if (cj && cj.agree === false && /^\d{6}$/.test(String(cj.better || '')) && clsRowsFor(String(cj.better)).length) V.clsCross = { by, agree: false, better: String(cj.better), why: String(cj.why || '') };
+          } catch (e2) { /* unparseable second opinion - stay silent */ }
+        }
+      }
       V.clsBusy = false;
       paintClassify();
       return;
@@ -1629,7 +1735,7 @@ function render() {
 function headerHtml() {
   return '<div class="app-head no-print"><h1 class="app-title">Worldwide HSN Code Finder</h1>' +
     '<p class="app-fact">' + SYS.length + ' official systems - ' + S.db.entries.length.toLocaleString('en-US') + ' codes</p>' +
-    '<p class="app-intro">Search WCO, India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel and Mexico. Every code links international roots to national and statistical lines, with detail and PDF.</p></div>';
+    '<p class="app-intro">Search WCO, India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa and Peru. Every code links international roots to national and statistical lines, with detail and PDF.</p></div>';
 }
 function footerHtml() {
   return '<footer class="app-foot no-print">Copyright (c) 2026 ' + esc(OWNER) + '. All rights reserved.<br>Tariff descriptions and duty rates compiled from the official public government and WCO sources credited above; verify against the official source before filing.</footer>';
