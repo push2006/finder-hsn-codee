@@ -44,13 +44,16 @@ let geminiModelUsed = '';
 let geminiGrounded = false;
 const geminiModelLabel = () => geminiModelUsed || GEMINI_MODELS[0];
 let groqModelUsed = '';
-// Built-in AI for everyone: point AI_PROXY_URL at your free Cloudflare Worker
-// (setup steps in worker-setup.txt). The worker holds the API keys server-side,
-// so every visitor gets AI picks + AI reports without pasting anything. Jobs
-// route by purpose: best-code picks use Groq (fast), report writing uses Gemini
-// (Google Search capable). A key pasted in AI settings always overrides the proxy.
-const AI_PROXY_URL = '';
-const AI_PROXY_TOKEN = ''; // set only if you also set APP_SECRET on the worker
+// Built-in AI for everyone: AI_PROXY_URL points at the free Render proxy
+// service (proxy.js in this repo). The proxy holds the API keys server-side in
+// environment variables, so no provider key ships to browsers and every visitor
+// gets AI picks + AI reports without pasting anything. Rotation order: Groq,
+// Gemini, Mistral, NVIDIA - the proxy tries each in turn. A key pasted in AI
+// settings always overrides the proxy. The token is visible in this public
+// bundle - a speed bump against drive-by abuse, not a true secret; the proxy
+// also rate-limits per IP.
+const AI_PROXY_URL = 'https://hsn-ai-proxy.onrender.com';
+const AI_PROXY_TOKEN = '648772556a62e577d379272febf550b9e28c5723'; // must match APP_SECRET on the proxy service
 // Built-in shared keys (optional second choice): paste your own free keys here
 // to give every visitor AI without a worker. WARNING: anyone can read these in
 // the page source and bots scan public repos - a shared key can be stolen and
@@ -92,6 +95,7 @@ async function aiCrossCall(producer, prompt, opts) {
       if (V.apiKey && ownProvider() === target) { const r = await PROVIDER_CALL[target](V.apiKey, prompt, opts); aiCrossBy = target; return r; }
       const pool = builtinKeys(target);
       if (pool.length) { const r = await PROVIDER_CALL[target](pool, prompt, opts); aiCrossBy = target; return r; }
+      if (AI_PROXY_URL) { const r = await PROVIDER_CALL[target]('', prompt, opts); aiCrossBy = target; return r; }
     } catch (e) { /* second opinion is best-effort; never blocks the answer */ }
   }
   return null;
@@ -99,7 +103,7 @@ async function aiCrossCall(producer, prompt, opts) {
 const aiHasBoth = () => {
   const set = new Set();
   if (V.apiKey) set.add(ownProvider());
-  if (AI_PROXY_URL) { set.add('gemini'); set.add('groq'); }
+  if (AI_PROXY_URL) { set.add('gemini'); set.add('groq'); set.add('mistral'); set.add('nvidia'); }
   if (builtinKeys('groq').length) set.add('groq');
   if (builtinKeys('gemini').length) set.add('gemini');
   if (builtinKeys('mistral').length) set.add('mistral');
@@ -283,13 +287,12 @@ async function aiPickText(prompt, opts) {
       throw err;
     }
   }
-  if (AI_PROXY_URL) {
-    aiSharedKey = false;
-    try { aiProviderUsed = 'groq'; return await groqPost('', prompt, opts); }
-    catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'gemini'; return geminiText('', prompt, opts, false); }
-  }
   const errs = [];
   for (const prov of PROVIDER_ORDER) {
+    if (AI_PROXY_URL) {
+      aiSharedKey = false; aiProviderUsed = prov;
+      try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (err) { if (!/not configured/i.test(err.message || '')) errs.push(err); }
+    }
     const pool = builtinKeys(prov);
     if (!pool.length) continue;
     aiSharedKey = true; aiProviderUsed = prov;
@@ -323,13 +326,12 @@ async function aiReportText(prompt, grounded, opts) {
       throw err;
     }
   }
-  if (AI_PROXY_URL) {
-    aiSharedKey = false;
-    try { aiProviderUsed = 'gemini'; return await geminiText('', prompt, opts, grounded); }
-    catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
-  }
   const errs = [];
   for (const prov of PROVIDER_ORDER) {
+    if (AI_PROXY_URL) {
+      aiSharedKey = false; aiProviderUsed = prov;
+      try { return prov === 'groq' ? await groqReport('', true) : prov === 'gemini' ? await geminiReport('', true) : await PROVIDER_CALL[prov]('', prompt, opts); } catch (err) { if (!/not configured/i.test(err.message || '')) errs.push(err); }
+    }
     const pool = builtinKeys(prov);
     if (!pool.length) continue;
     try { return prov === 'groq' ? await groqReport(pool, true) : prov === 'gemini' ? await geminiReport(pool, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](pool, prompt, opts)); } catch (err) { errs.push(err); }
@@ -961,7 +963,7 @@ async function tplNarrative(db, idx, apiKey) {
       if (m > 0) { const from = text.lastIndexOf('{', m); if (from >= 0 && from < b) { try { obj = JSON.parse(text.slice(from, b + 1)); } catch { /* next attempt */ } } }
     }
     if (obj && typeof obj === 'object') {
-      for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/ã[^ã]*ã/g, '').trim();
+      for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/【[^】]*】/g, '').trim();
       geminiGrounded = grounded && aiProviderUsed === 'gemini';
       if (aiHasBoth()) {
         const by = PROVIDER_LABEL[aiCrossBy] || 'a second provider';
@@ -1020,7 +1022,7 @@ function tplNarr(narr, key) {
 function tplDocTable(s) {
   // "Document - issuing authority - why needed" lines become a 3-column table; fall back to the bullet list.
   const lines = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
-  const rows = lines.map((l) => l.replace(/^[-*â¢\d.)\s]+/, '')).map((l) => {
+  const rows = lines.map((l) => l.replace(/^[-*•\d.)\s]+/, '')).map((l) => {
     const parts = l.split(/\s+-\s+/);
     return parts.length >= 3 ? [parts[0], parts[1], parts.slice(2).join(' - ')] : null;
   }).filter(Boolean);
@@ -1031,7 +1033,7 @@ function tplDocTable(s) {
 function tplCheck(s) {
   const items = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3 && /[a-zA-Z]/.test(l));
   if (!items.length) return '';
-  return '<ul class="tpl-check">' + items.map((l) => '<li>' + esc(l.replace(/^[-*â¢\d.\)\s]+/, '')) + '</li>').join('') + '</ul>';
+  return '<ul class="tpl-check">' + items.map((l) => '<li>' + esc(l.replace(/^[-*•\d.\)\s]+/, '')) + '</li>').join('') + '</ul>';
 }
 function tplBars(rows, unit) {
   const max = Math.max.apply(null, rows.map((r) => r[1]).concat([1]));
@@ -1563,7 +1565,7 @@ function paintShortlist() {
       const e = db.entries[x.i];
       lines.push([SYS[e[0]].name, fmtCode(e[0], e[1]), pretty(e[2]), e[5] || '', S.notes[x.k] || '', SYS[e[0]].url].map(q).join(','));
     });
-    const blob = new Blob(['ï»¿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'hsn-shortlist.csv';
