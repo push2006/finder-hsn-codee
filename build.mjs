@@ -46,6 +46,9 @@ const certs = read('certs.ts')
 const fta = plain('fta.ts', 'FTA_UAE')
   .replace('export const FTA_UAE_UNPARSED: string[] =', 'const FTA_UAE_UNPARSED =')
   .replace('export const FTA_AU: Record<string, string[]> =', 'const FTA_AU =');
+const rodtep = read('rodtep.ts')
+  .replace('export const RODTEP_DTA: Record<string, [string, string, string]> =', 'const RODTEP_DTA =')
+  .replace('export const RODTEP_SEZ: Record<string, [string, string, string]> =', 'const RODTEP_SEZ =');
 const scomet = plain('scomet.ts', 'SCOMET');
 const alias = plain('aliases.ts', 'ALIASES');
 const sanc = read('sanctions.ts')
@@ -91,6 +94,7 @@ ${sancz}
 ${add}
 ${certs}
 ${fta}
+${rodtep}
 ${scomet}
 ${alias}
 ${sanc}

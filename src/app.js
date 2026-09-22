@@ -16,6 +16,7 @@ import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
 import { SANC_ZONES, SANC_SRC } from './sanc';
 import { DOC_BASE_OUT, DOC_BASE_IN, DOC_EXTRA, PORTS, DOC_SRC } from './docs';
 import { SCOMET } from './scomet';
+import { RODTEP_DTA, RODTEP_SEZ } from './rodtep';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
 
@@ -963,6 +964,33 @@ function riskHtml(e) {
   return '<div class="detail-sec risk-card"><h3>Supply-chain risk scan <span class="risk-chip" style="background:' + lvl[1] + '">' + lvl[0] + '</span></h3>' +
     (rows.length ? '<ul class="risk-list">' + rows.map((r) => '<li>' + esc(r[1]) + '</li>').join('') + '</ul>' : '<p>No concentration, sanctions-zone, anti-dumping or export-control flags for this product in the baked data.</p>') +
     '<p class="muted">Composite of: India partner concentration (UN Comtrade 2025' + (tp ? '' : ' - partner breakdown not yet baked for this code, coverage grows daily') + '), sanctions-zone exposure of top partners, in-force anti-dumping measures (CBIC) and SCOMET export control (DGFT). Screening aid, not legal advice - verify before shipping.</p></div>';
+}
+
+// RoDTEP export incentive - DGFT Appendix 4R (DTA) + 4RE (SEZ/EOU/AA).
+function rodtepRow(code, row, label) {
+  const rate = row[0], cap = row[1], uqc = row[2];
+  return '<tr><td>' + esc(label) + '</td><td><strong>' + esc(rate) + (rate.indexOf('%') >= 0 ? ' of FOB' : '') + '</strong></td><td>' + (cap ? 'cap Rs ' + esc(cap) + ' per ' + esc(uqc || 'unit') : 'no value cap') + '</td></tr>';
+}
+function rodtepHtml(e) {
+  if (e[0] !== 1) return '';
+  const rows = [];
+  const d = RODTEP_DTA[e[1]];
+  const s = RODTEP_SEZ[e[1]];
+  if (d) rows.push(rodtepRow(e[1], d, 'Exports from DTA (Appendix 4R)'));
+  if (s) rows.push(rodtepRow(e[1], s, 'Exports from SEZ / EOU / AA (Appendix 4RE)'));
+  let extra = '';
+  if (!rows.length && e[1].length < 8) {
+    const kids = [];
+    for (const c in RODTEP_DTA) { if (c.slice(0, e[1].length) === e[1]) kids.push(c); if (kids.length > 9) break; }
+    if (kids.length) {
+      extra = '<p class="muted">Rebated lines under this heading include ' + kids.slice(0, 9).map((c) => esc(c) + ' (' + esc(RODTEP_DTA[c][0]) + ')').join(', ') + ' - open an 8-digit line for its exact rate.</p>';
+    }
+  }
+  if (!rows.length && !extra) return '';
+  return '<div class="detail-sec rodtep-card"><h3>Export incentive - RoDTEP rebate</h3>' +
+    (rows.length ? '<table class="boom-table"><thead><tr><th>Route</th><th>Rebate rate</th><th>Value cap</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>' : '') +
+    extra +
+    '<p class="muted">Remission of embedded duties and taxes, claimed as e-scrips on ICEGATE by declaring the RoDTEP intent on the shipping bill. Rates from DGFT Appendix 4R / 4RE: base Notification 32/2024 (wef 10.10.2024) as amended by Notification 15/2026-27 (wef 01.05.2026). Rebates are budget-capped and rates change - verify the current schedule on DGFT (Regulations > RoDTEP) before pricing. <a href="https://www.dgft.gov.in/CP/?opt=rodtep" target="_blank" rel="noreferrer">DGFT RoDTEP schedule</a>.</p></div>';
 }
 
 // Reverse lookup - foreign code -> India HSN crosswalk.
@@ -1962,6 +1990,7 @@ function detailHtml(idx) {
   s += addHtml(e[1], e[2]);
   s += boomBadgeHtml(e);
   s += riskHtml(e);
+  s += rodtepHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
   if (path.length > 1) {
