@@ -40,16 +40,32 @@ const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash
 let geminiModelUsed = '';
 let geminiGrounded = false;
 const geminiModelLabel = () => geminiModelUsed || GEMINI_MODELS[0];
-const geminiAiLabel = () => 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search');
+// Groq free-tier chat models, biggest first (https://console.groq.com/docs/models).
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+let groqModelUsed = '';
+// Built-in AI for everyone: point AI_PROXY_URL at your free Cloudflare Worker
+// (setup steps in worker-setup.txt). The worker holds the API keys server-side,
+// so every visitor gets AI picks + AI reports without pasting anything. Jobs
+// route by purpose: best-code picks use Groq (fast), report writing uses Gemini
+// (Google Search capable). A key pasted in AI settings always overrides the proxy.
+const AI_PROXY_URL = '';
+const AI_PROXY_TOKEN = ''; // set only if you also set APP_SECRET on the worker
+let aiProviderUsed = 'gemini';
+const geminiAiLabel = () => aiProviderUsed === 'groq'
+  ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', model knowledge only - no live search'
+  : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
   let quotaHit = false, transientHit = false, netFail = false;
   for (const m of GEMINI_MODELS) {
     let res, data;
     try {
-      res = await fetch(geminiEndpoint(m), {
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['x-goog-api-key'] = apiKey.trim();
+      else if (AI_PROXY_TOKEN) headers['x-app-token'] = AI_PROXY_TOKEN;
+      res = await fetch(apiKey ? geminiEndpoint(m) : AI_PROXY_URL + '/gemini/v1beta/models/' + m + ':generateContent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+        headers,
         body: JSON.stringify(body),
       });
       data = await res.json().catch(() => ({}));
@@ -61,6 +77,7 @@ async function geminiPost(apiKey, body) {
     const msg = (data && data.error && data.error.message) || ('Gemini API error ' + res.status);
     if (res.status === 400 && /key|api/i.test(msg)) throw new Error('The Gemini key was not accepted. Check the key in AI settings.');
     if (res.status === 403 && /key|permission|referer|restrict|identity/i.test(msg)) throw new Error('The Gemini key was refused. Check the key and its restrictions in AI settings.');
+    if (/keys configured|not configured/i.test(msg)) throw new Error('AI provider not configured on the server: ' + msg);
     if (res.status === 429) { quotaHit = true; continue; }
     if (res.status === 503 || res.status === 500 || /high demand|overloaded|try again later/i.test(msg)) { transientHit = true; continue; }
     if (res.status === 404 || /not found|no longer|deprecated|not supported|unavailable|retired/i.test(msg)) continue;
@@ -72,6 +89,59 @@ async function geminiPost(apiKey, body) {
   throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
 }
 const API_KEY_STORE = 'hsn-gemini-api-key';
+const API_PROVIDER_STORE = 'hsn-ai-provider';
+// Visitor's own key always wins over the proxy. If the worker has no keys for a
+// job's own provider yet, the other provider covers it (the AI label stays honest).
+const ownProvider = () => (V.apiProvider === 'groq' || (V.apiProvider !== 'gemini' && /^gsk_/i.test(V.apiKey.trim())) ? 'groq' : 'gemini');
+async function geminiText(apiKey, prompt, opts, grounded) {
+  const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: opts.temperature, maxOutputTokens: opts.maxTokens } };
+  if (grounded) body.tools = [{ google_search: {} }];
+  const { data } = await geminiPost(apiKey, body);
+  const cand = data && data.candidates && data.candidates[0];
+  return ((cand && cand.content && cand.content.parts) || []).map((pt) => pt.text || '').join('\n');
+}
+async function groqPost(apiKey, prompt, opts) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = 'Bearer ' + apiKey.trim();
+  else if (AI_PROXY_TOKEN) headers['x-app-token'] = AI_PROXY_TOKEN;
+  const url = apiKey ? 'https://api.groq.com/openai/v1/chat/completions' : AI_PROXY_URL + '/groq/openai/v1/chat/completions';
+  let quotaHit = false, transientHit = false, netFail = false;
+  for (const m of GROQ_MODELS) {
+    let res, data;
+    try {
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: m, messages: [{ role: 'user', content: prompt }], temperature: opts.temperature, max_tokens: opts.maxTokens }) });
+      data = await res.json().catch(() => ({}));
+    } catch (err) { netFail = true; continue; }
+    if (res.ok) { groqModelUsed = m; return String((((data.choices || [])[0] || {}).message || {}).content || ''); }
+    const msg = (data && data.error && data.error.message) || ('Groq API error ' + res.status);
+    if (/keys configured|not configured/i.test(msg)) throw new Error('AI provider not configured on the server: ' + msg);
+    if (apiKey && res.status === 401) throw new Error('The Groq key was not accepted. Check the key in AI settings.');
+    if (res.status === 429 || res.status === 413) { quotaHit = true; continue; }
+    if (res.status === 503 || res.status === 500 || /overloaded|try again later/i.test(msg)) { transientHit = true; continue; }
+    if (res.status === 404 || /decommissioned|no longer supported|does not exist/i.test(msg)) continue;
+    throw new Error('AI generation failed (' + msg + '). The offline data report still works - try again later.');
+  }
+  if (quotaHit) throw new Error('Free Groq limit reached for now. Try again after the quota resets.');
+  if (transientHit) throw new Error('The AI models are busy right now. Wait a minute and try again.');
+  if (netFail) throw new Error('No connection to the AI service. Check the internet connection and try again.');
+  throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
+}
+async function aiPickText(prompt, opts) {
+  if (V.apiKey) { aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false); }
+  if (AI_PROXY_URL) {
+    try { aiProviderUsed = 'groq'; return await groqPost('', prompt, opts); }
+    catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'gemini'; return geminiText('', prompt, opts, false); }
+  }
+  throw new Error('no-ai');
+}
+async function aiReportText(prompt, grounded, opts) {
+  if (V.apiKey) { aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, grounded); }
+  if (AI_PROXY_URL) {
+    try { aiProviderUsed = 'gemini'; return await geminiText('', prompt, opts, grounded); }
+    catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
+  }
+  throw new Error('no-ai');
+}
 
 /* ---------- small helpers ---------- */
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -178,6 +248,14 @@ function lev1(a, b) {
   return edits <= 1;
 }
 
+const SEARCH_CAP = 20000;
+const stemForms = (w) => {
+  const f = [w];
+  if (w.length > 4 && w.endsWith('ies')) f.push(w.slice(0, -3) + 'y');
+  if (w.length > 4 && w.endsWith('es')) f.push(w.slice(0, -2));
+  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) f.push(w.slice(0, -1));
+  return [...new Set(f)];
+};
 function search(db, descQ, hsnQ, tarQ, sysFilter) {
   const words = descQ.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
   const hsn = hsnQ.replace(/\D/g, '');
@@ -202,31 +280,70 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
         if (!ok) continue;
       }
       out.push(i);
-      if (out.length >= 4000) break;
+      if (out.length >= SEARCH_CAP) break;
     }
     return out;
+  };
+  // Relevance order: exact whole-word (token) matches first, substring-only hits last;
+  // ties break to earliest mention, then shallower codes and tighter descriptions.
+  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u'));
+  const tokRes = mkTokRes(words);
+  const phrase = descQ.toLowerCase().trim().replace(/\s+/g, ' ');
+  const rank = (idxs, rWords) => {
+    const rw = rWords || words;
+    const rRes = rWords ? mkTokRes(rw) : tokRes;
+    const keyed = idxs.map((i) => {
+      const h = db.hay[i];
+      let tok = 0, posSum = 0;
+      for (let wi = 0; wi < rw.length; wi++) {
+        if (rRes[wi].test(h)) tok++;
+        const p = h.indexOf(rw[wi]);
+        posSum += p < 0 ? 999 : p;
+      }
+      const ph = !rWords && words.length > 1 && h.includes(phrase) ? 0 : 1;
+      const nec = /\bn\.?e\.?c\b/.test(h) ? 1 : 0;
+      const sysR = db.entries[i][0] === 0 ? 0 : 1;
+      return [ph, -tok, nec, sysR, posSum, db.entries[i][1].length, h.length, i];
+    });
+    keyed.sort((a, b) => {
+      for (let k = 0; k < 7; k++) { if (a[k] !== b[k]) return a[k] - b[k]; }
+      return a[7] - b[7];
+    });
+    return keyed.map((x) => x[7]);
   };
   const strict = run(words.map((w) => [w]));
   const alias = ALIASES[descQ.toLowerCase().trim().replace(/\s+/g, ' ')];
   if (alias) {
+    // Alias word-sets are listed best-first: bucket matches per set to keep
+    // that preference, then rank within each bucket.
     const seen = new Set();
-    const merged = [];
-    for (const wordSet of alias) { for (const i of run(wordSet.map((w) => [w]))) { if (!seen.has(i)) { seen.add(i); merged.push(i); } } }
-    for (const i of strict) { if (!seen.has(i)) { seen.add(i); merged.push(i); } }
-    const pos = (i) => { const d = db.hay[i]; let p = 1e9; for (const ws of alias) { for (const w of ws) { const q = d.indexOf(w); if (q >= 0 && q < p) p = q; } } return p; };
-    merged.sort((a, b) => pos(a) - pos(b));
-    return { out: merged, fuzzy: false };
+    const buckets = alias.map(() => []);
+    const rest = [];
+    const put = (i) => {
+      if (seen.has(i)) return;
+      seen.add(i);
+      const h = db.hay[i];
+      for (let si = 0; si < alias.length; si++) {
+        let all = true;
+        for (const w of alias[si]) { if (!h.includes(w)) { all = false; break; } }
+        if (all) { buckets[si].push(i); return; }
+      }
+      rest.push(i);
+    };
+    for (const wordSet of alias) { for (const i of run(wordSet.map((w) => [w]))) put(i); }
+    for (const i of strict) put(i);
+    return { out: buckets.flatMap((b, si) => rank(b, alias[si])).concat(rank(rest)), fuzzy: false };
   }
-  if (strict.length >= 5 || !words.length) return { out: strict, fuzzy: false };
+  if (strict.length >= 5 || !words.length) return { out: rank(strict), fuzzy: false };
   const longWords = words.filter((w) => w.length >= 5);
-  if (longWords.length > 3 || longWords.length !== words.length) return { out: strict, fuzzy: false };
+  if (longWords.length > 3 || longWords.length !== words.length) return { out: rank(strict), fuzzy: false };
   const variants = words.map((w) => {
     const vs = [w];
     for (const v of db.vocab) { if (Math.abs(v.length - w.length) <= 1 && v[0] === w[0] && lev1(w, v)) vs.push(v); if (vs.length > 12) break; }
     return vs;
   });
   const fz = run(variants);
-  return fz.length > strict.length ? { out: fz, fuzzy: true } : { out: strict, fuzzy: false };
+  return fz.length > strict.length ? { out: rank(fz), fuzzy: true } : { out: rank(strict), fuzzy: false };
 }
 
 
@@ -328,6 +445,7 @@ const V = { // per-view ephemeral state
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
   dIdx: null, needKey: false, busy: false, settingsOpen: false, briefError: null, copied: false,
   apiKey: (() => { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch { return ''; } })(),
+  apiProvider: (() => { try { return localStorage.getItem(API_PROVIDER_STORE) || ''; } catch { return ''; } })(),
   ccy: {}, // sys -> info | 'err'
 };
 
@@ -562,24 +680,18 @@ async function tplNarrative(db, idx, apiKey) {
     'Use Google Search for current facts. Rules: plain simple English, short sentences, readable on a phone. Never invent a number, price, company role, regulation or statistic; where product-specific data is unavailable, say so plainly and give clearly labelled general chapter-level context instead. Do not use markdown, headings, tables or bullet markers - plain paragraphs only.\n' +
     'Return ONLY a JSON object, no code fences, with exactly these keys. Every key except sec15 maps to one string of 2 to 4 short paragraphs (paragraphs separated by a blank line). sec15 maps to one string of newline-separated checklist lines, each line formatted as "Document name - issuing authority - why it is needed for this product":\n' +
     '{"sec01a":"product features and trade-offs - be concrete: physical forms, grades, quality markers, substitutes","sec02":"manufacturing and distribution - typical production process, input materials, manufacturing hubs, distribution channels","sec03":"global market, pricing and shortages - market size direction, price drivers, major exporting and importing countries, current shortages or gluts","sec04":"notable verified producer and buyer companies by country, only with evidence - if none verified, say data unavailable","sec05":"India market and realistic opportunities - demand pockets, buyer types, realistic entry routes for an Indian trader","sec06":"geopolitics and supply-chain risks - concentration risks, trade tensions, logistics chokepoints affecting this product","sec07":"technical uses by industry - which industries consume it and for what","sec08":"safety, storage and regulation - handling, shelf life, transport hazards, product-specific rules","sec09":"overall summary","sec10":"impact of trade in this product","sec11":"geopolitics deep view","sec12":"financial considerations - working capital, payment terms, price volatility, margin structure","sec13":"competitive advantages","sec14":"what is changing and the outlook","sec15":"export-import document checklist for trading this product to or from India","sec16":"logistics, packing and Incoterms guidance - typical packing, container or shipping mode, insurance notes, which Incoterms suit this trade and why","sec17":"recent policy changes and news from the last 12 months affecting this product - tariff changes, bans, new rules, with dates"}';
-  const mkBody = (grounded) => ({
-    contents: [{ role: 'user', parts: [{ text: grounded ? prompt : prompt.replace('Use Google Search for current facts.', 'Use your built-in knowledge of this product, its industry and trade.') }] }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 16000 },
-    ...(grounded ? { tools: [{ google_search: {} }] } : {}),
-  });
   // Grounded (Google Search) first; free-tier keys often have no grounding quota (429),
   // so fall back to a plain model-knowledge call rather than failing the whole report.
+  const plainPrompt = prompt.replace('Use Google Search for current facts.', 'Use your built-in knowledge of this product, its industry and trade.');
   for (const grounded of [true, false]) {
-    let data;
-    try { ({ data } = await geminiPost(apiKey, mkBody(grounded))); }
+    let text;
+    try { text = await aiReportText(grounded ? prompt : plainPrompt, grounded, { temperature: 0.2, maxTokens: 16000 }); }
     catch (err) { if (grounded) continue; throw err; }
-    const cand = data && data.candidates && data.candidates[0];
-    const text = ((cand && cand.content && cand.content.parts) || []).map((pt) => pt.text || '').join('\n');
     const a = text.indexOf('{'), b = text.lastIndexOf('}');
     if (a < 0 || b <= a) continue;
     try {
       const obj = JSON.parse(text.slice(a, b + 1));
-      if (obj && typeof obj === 'object') { geminiGrounded = grounded; return obj; }
+      if (obj && typeof obj === 'object') { geminiGrounded = grounded && aiProviderUsed === 'gemini'; return obj; }
     } catch { /* try the next attempt */ }
   }
   return null;
@@ -864,7 +976,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
 
 async function openTemplateReport(db, idx) {
   let narrative = null, aiError = '';
-  if (V.apiKey) {
+  if (V.apiKey || AI_PROXY_URL) {
     try { narrative = await tplNarrative(db, idx, V.apiKey); } catch (err) { aiError = err.message || 'AI call failed'; }
   }
   const html = buildTemplateReport(db, idx, narrative, { aiError });
@@ -923,15 +1035,17 @@ function detailHtml(idx) {
   if (kids.length > 120) s += '<p class="muted">Showing 120 of ' + kids.length + ' sub-lines. Use the code search with prefix ' + esc(e[1]) + ' to see more.</p>';
   s += '</div>';
   s += '<div class="detail-sec no-print ai-panel">' +
-    '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. Needs a free Gemini key, set up once.</p></div><span class="ai-status ' + (apiKey ? 'ready' : 'offline') + '">' + (apiKey ? 'Live ready' : 'Key needed') + '</span></div>' +
+    '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. ' + (AI_PROXY_URL ? 'AI is built in for everyone - no key needed.' : 'Needs a free AI key, set up once.') + '</p></div><span class="ai-status ' + ((apiKey || AI_PROXY_URL) ? 'ready' : 'offline') + '">' + ((apiKey || AI_PROXY_URL) ? 'Live ready' : 'Key needed') + '</span></div>' +
     '<div class="action-row">' +
     '<button class="file-button is-compact" id="d-tpl"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Writing the report with AI...' : 'Full report') + '</button>' +
-    '<button class="file-button is-compact" data-variant="secondary" id="ai-settings">' + (V.settingsOpen ? 'Hide AI settings' : apiKey ? 'Change API key' : 'Set up live AI') + '</button>' +
+    '<button class="file-button is-compact" data-variant="secondary" id="ai-settings">' + (V.settingsOpen ? 'Hide AI settings' : apiKey ? 'Change API key' : 'Use your own key') + '</button>' +
     '</div>';
-  if (V.needKey) s += '<p class="error-note">Add your free Gemini key first - the full report uses AI writing, so the key comes before the report. Paste it below and tap Save on this phone.</p>';
+  if (V.needKey) s += '<p class="error-note">Add a free AI key first - the full report uses AI writing, so the key comes before the report. Paste it below and tap Save on this phone.</p>';
   if (V.settingsOpen) {
+    const selProv = V.apiProvider || (/^gsk_/i.test(apiKey.trim()) ? 'groq' : 'gemini');
     s += '<div class="api-settings">' +
-      '<label class="sfield"><span class="slabel">Gemini API key</span><input type="password" id="api-key" value="' + esc(apiKey) + '" placeholder="Paste key once" autocomplete="off"></label>' +
+      '<label class="sfield"><span class="slabel">Key provider</span><select id="api-provider"><option value="gemini"' + (selProv === 'gemini' ? ' selected' : '') + '>Gemini (Google) - can search the live web</option><option value="groq"' + (selProv === 'groq' ? ' selected' : '') + '>Groq - faster answers</option></select></label>' +
+      '<label class="sfield"><span class="slabel">API key</span><input type="password" id="api-key" value="' + esc(apiKey) + '" placeholder="Paste Gemini or Groq key once" autocomplete="off"></label>' +
       '<div class="action-row"><button class="file-button is-compact" id="api-save">Save on this phone</button>' +
       (apiKey ? '<button class="file-button is-compact" data-variant="secondary" id="api-remove">Remove key</button>' : '') +
       '<a class="file-button is-compact" data-variant="secondary" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Create free key</a></div>' +
@@ -966,8 +1080,9 @@ function paintDetail() {
   if (V.settingsOpen) {
     el('api-save').addEventListener('click', () => {
       const v = el('api-key').value.trim();
-      try { localStorage.setItem(API_KEY_STORE, v); } catch { /* ignore */ }
-      V.apiKey = v; V.settingsOpen = false; paintDetail();
+      const p = el('api-provider') ? el('api-provider').value : '';
+      try { localStorage.setItem(API_KEY_STORE, v); localStorage.setItem(API_PROVIDER_STORE, p); } catch { /* ignore */ }
+      V.apiKey = v; V.apiProvider = p; V.settingsOpen = false; paintDetail();
     });
     const rm = el('api-remove');
     if (rm) rm.addEventListener('click', () => {
@@ -977,7 +1092,7 @@ function paintDetail() {
   }
   el('d-compare').addEventListener('click', () => { S.cmpA = idx; S.cmpB = null; V.cmpQ = ''; render(); });
   el('d-tpl').addEventListener('click', () => {
-    if (!V.apiKey) {
+    if (!V.apiKey && !AI_PROXY_URL) {
       V.needKey = true; V.settingsOpen = true; V.briefError = null; paintDetail();
       const k = el('api-key');
       if (k) { try { k.scrollIntoView({ block: 'center' }); } catch { /* ignore */ } try { k.focus(); } catch { /* ignore */ } }
@@ -1099,8 +1214,8 @@ function paintShortlist() {
 function classifyHtml() {
   const apiKey = V.apiKey;
   let s = '';
-  if (!apiKey && !V.clsHits && !V.clsOffline && !V.clsBusy) {
-    s += '<p class="muted no-print" style="margin:2px 0 6px">Tip: add a free Gemini key on any detail page and this box also gives AI best-code picks. Without a key it shows closest text matches.</p>';
+  if (!apiKey && !AI_PROXY_URL && !V.clsHits && !V.clsOffline && !V.clsBusy) {
+    s += '<p class="muted no-print" style="margin:2px 0 6px">Tip: add a free Gemini or Groq key on any detail page and this box also gives AI best-code picks. Without a key it shows closest text matches.</p>';
   }
   if (V.clsErr) s += '<p class="error-note">' + esc(V.clsErr) + '</p>';
   if (V.clsBusy) s += '<p class="muted">Thinking...</p>';
@@ -1142,13 +1257,11 @@ async function classifyRun() {
   if (!text || V.clsBusy) return;
   V.clsBusy = true; V.clsErr = null; V.clsHits = null; V.clsOffline = null;
   paintClassify();
-  const apiKey = V.apiKey;
-  if (apiKey) {
+  const hasAi = V.apiKey || AI_PROXY_URL;
+  if (hasAi) {
     try {
       const prompt = 'You are an expert customs tariff classifier using the WCO Harmonized System 2022. A trader describes a product: "' + text.replace(/"/g, "'") + '". Suggest up to 5 most likely 6-digit HS codes (subheading level), best first. Return ONLY a JSON array, no Markdown, no commentary: [{"code":"280421","why":"one short line"}]. Codes must be real HS 2022 subheadings.';
-      const { data } = await geminiPost(apiKey, { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 1200 } });
-      let txt = (((data.candidates || [])[0] || {}).content || {}).parts || [];
-      txt = txt.map((p) => p.text || '').join('').trim().replace(/```[a-z]*/gi, '');
+      let txt = (await aiPickText(prompt, { temperature: 0, maxTokens: 1200 })).trim().replace(/```[a-z]*/gi, '');
       const a = txt.indexOf('['); const b = txt.lastIndexOf(']');
       if (a < 0 || b <= a) throw new Error('no JSON');
       const arr = JSON.parse(txt.slice(a, b + 1));
@@ -1353,7 +1466,7 @@ function paintResults() {
   const shown = fam.slice(0, 60);
   let s = '';
   if (fam.length) {
-    s += '<p class="muted no-print">' + (r.out.length >= 4000 ? '4000+' : fam.length) + ' ' + (fam.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
+    s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length) + ' ' + (fam.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
     s += '<ul class="result-list no-print">' + shown.map((i) => {
       const e = S.db.entries[i];
       return '<li><button class="result-link linkbtn-block" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button></li>';

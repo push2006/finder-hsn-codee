@@ -63,7 +63,8 @@ export const ALIASES: Record<string, string[][]> = {
   'masala': [['mixtures', 'spices'], ['spices']],
   'jewellery': [['jewellery']],
   'jewelry': [['jewellery']],
-  'tyre': [['tyres']],
-  'tire': [['tyres']],
+  'sugar': [['cane', 'beet'], ['cane', 'sugar'], ['beet', 'sugar'], ['sugar']],
+  'tyre': [['new', 'pneumatic', 'tyres'], ['tyres']],
+  'tire': [['new', 'pneumatic', 'tyres'], ['tyres']],
   'toys': [['toys']],
 };
