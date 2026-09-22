@@ -50,7 +50,9 @@ function extract(records, names) {
     if (r.partnerCode === 0) { world[f] = r; continue; }
     const name = names[r.partnerCode];
     if (!name || !(r.primaryValue > 0)) continue;
-    top[f].push([name, Math.round(r.primaryValue)]);
+    const rec = [name, Math.round(r.primaryValue)];
+    if (r.netWgt > 0) rec.push(Math.round(r.netWgt)); // enables honest USD/kg unit prices
+    top[f].push(rec);
   }
   for (const f of ['M', 'X']) top[f] = top[f].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const qty = (w) => {
@@ -78,11 +80,12 @@ function render(year, data) {
     `// world-total supplementary quantity (WCO units) and net weight; estimated flags kept.\n` +
     `// Baked ${new Date().toISOString().slice(0, 10)} - coverage ${codes.length} codes, grows daily.\n` +
     `export const TRADE_PARTNERS_YEAR = ${year};\n` +
-    `export const TRADE_PARTNERS: Record<string, { x: [string, number][]; m: [string, number][]; xq?: [number, string]; mq?: [number, string]; xn?: [number, boolean]; mn?: [number, boolean] }> = {\n`;
+    `export const TRADE_PARTNERS: Record<string, { x: [string, number, number?][]; m: [string, number, number?][]; gx?: [string, number][]; gm?: [string, number][]; xq?: [number, string]; mq?: [number, string]; xn?: [number, boolean]; mn?: [number, boolean] }> = {\n`;
   for (const c of codes) {
     const d = data[c];
-    const pair = (a) => '[' + a.map((p) => '[' + JSON.stringify(p[0]) + ', ' + p[1] + ']').join(', ') + ']';
+    const pair = (a) => '[' + a.map((p) => '[' + JSON.stringify(p[0]) + ', ' + p[1] + (p[2] ? ', ' + p[2] : '') + ']').join(', ') + ']';
     let line = `  '${c}': { x: ${pair(d.x)}, m: ${pair(d.m)}`;
+    if (d.gx) line += `, gx: ${pair(d.gx)}, gm: ${pair(d.gm)}`;
     const q = (k, v) => v ? `, ${k}: [${v[0]}, ${JSON.stringify(v[1])}]` : '';
     const n = (k, v) => v ? `, ${k}: [${v[0]}, ${v[1]}]` : '';
     line += q('xq', d.xq) + q('mq', d.mq) + n('xn', d.xn) + n('mn', d.mn) + ' },\n';
@@ -91,9 +94,77 @@ function render(year, data) {
   return out + '};\n';
 }
 
+// Top global exporters and importers for one code (reporter = all countries).
+function extractGlobal(records, names) {
+  const top = { M: [], X: [] };
+  for (const r of records) {
+    const f = r.flowCode;
+    if (f !== 'M' && f !== 'X') continue;
+    if (r.reporterCode === 0) continue;
+    const name = names[r.reporterCode];
+    if (!name || !(r.primaryValue > 0)) continue;
+    top[f].push([name, Math.round(r.primaryValue)]);
+  }
+  for (const f of ['M', 'X']) top[f] = top[f].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return { gx: top.X, gm: top.M };
+}
+
+// Multi-year India trend for EVERY 6-digit code: 2 bulk calls per year, cached by year range.
+async function bakeTrend(year, log) {
+  const TSTATE = 'state/comtrade-trend.json';
+  const TOUT = 'src/tradetrend.ts';
+  const years = [];
+  for (let y = year - 4; y <= year; y++) years.push(y);
+  let st = fs.existsSync(TSTATE) ? JSON.parse(fs.readFileSync(TSTATE, 'utf8')) : null;
+  if (st && st.years && st.years[0] === years[0] && st.years[4] === years[4] && Object.keys(st.data || {}).length > 3000) {
+    return { trend: 'cached', codes: Object.keys(st.data).length, years: st.years };
+  }
+  const perYear = {};
+  for (const y of years) {
+    perYear[y] = { m: {}, x: {} };
+    for (const flow of ['M', 'X']) {
+      const url = `https://comtradeapi.un.org/data/v1/get/C/A/HS?reporterCode=699&period=${y}&partnerCode=0&partner2Code=0&flowCode=${flow}&cmdCode=AG6&customsCode=C00&motCode=0`;
+      const d = await fetchJson(url, true);
+      for (const r of d.data || []) if (r.primaryValue > 0) perYear[y][flow.toLowerCase()][r.cmdCode] = Math.round(r.primaryValue);
+      await new Promise((r) => setTimeout(r, 450));
+    }
+    log('trend year', y, 'pulled');
+  }
+  const data = {};
+  for (const y of years) {
+    for (const c of Object.keys(perYear[y].m)) {
+      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0];
+      data[c][y][0] = perYear[y].m[c];
+    }
+    for (const c of Object.keys(perYear[y].x)) {
+      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0];
+      data[c][y][1] = perYear[y].x[c];
+    }
+  }
+  fs.mkdirSync('state', { recursive: true });
+  fs.writeFileSync(TSTATE, JSON.stringify({ years, data }) + '\n');
+  let out = `// India merchandise trade by 6-digit HS code, calendar years ${years[0]}-${years[4]}.
+` +
+    `// Source: UN Comtrade API (comtradeapi.un.org), reporter 699 (India), partner World,
+` +
+    `// flows M (imports, CIF) and X (exports), USD. Row: [year, imports, exports].
+` +
+    `// Baked ${new Date().toISOString().slice(0, 10)}.
+` +
+    `export const TRADE_TREND_YEARS = [${years.join(', ')}];
+` +
+    `export const TRADE_TREND: Record<string, [number, number][]> = {\n`;
+  for (const c of Object.keys(data).sort()) {
+    out += `  '${c}': [${years.map((y) => `[${y}, ${(data[c][y] || [0, 0])[0]}, ${(data[c][y] || [0, 0])[1]}]`).join(', ')}],\n`;
+  }
+  fs.writeFileSync(TOUT, out + '};\n');
+  return { trend: 'baked', codes: Object.keys(data).length, years };
+}
+
 export async function bakePartners() {
   if (!KEY) { log('COMTRADE_KEY not set - skipping partner bake'); return { skipped: 'no key' }; }
   const { year, codes } = tradeYearAndCodes();
+  const trend = await bakeTrend(year, log);
   const ranked = Object.entries(codes).sort((a, b) => b[1] - a[1]).map((e) => e[0]);
   let st = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : null;
   if (!st || st.year !== year) st = { year, data: {}, failures: {} };
@@ -103,14 +174,19 @@ export async function bakePartners() {
     return { complete: Object.keys(st.data).length, year };
   }
   const names = await partnerNames();
-  const batch = remaining.slice(0, DRY ? 2 : BATCH);
+  const batch = remaining.slice(0, DRY ? 2 : Math.floor(BATCH / 2)); // 2 calls per code now (India partners + global)
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let pulled = 0, failed = 0, throttled = false;
   for (const code of batch) {
     try {
       const url = `https://comtradeapi.un.org/data/v1/get/C/A/HS?reporterCode=699&period=${year}&cmdCode=${code}&flowCode=M%2CX&partner2Code=0&customsCode=C00&motCode=0`;
       const d = await fetchJson(url, true);
-      st.data[code] = extract(d.data || [], names);
+      const rec = extract(d.data || [], names);
+      await sleep(450);
+      const g = await fetchJson(`https://comtradeapi.un.org/data/v1/get/C/A/HS?period=${year}&cmdCode=${code}&flowCode=M%2CX&partnerCode=0&partner2Code=0&customsCode=C00&motCode=0`, true);
+      const gr = extractGlobal(g.data || [], names);
+      rec.gx = gr.gx; rec.gm = gr.gm;
+      st.data[code] = rec;
       delete st.failures[code];
       pulled++;
       await sleep(450); // free tier throttles bursts; pace the calls
@@ -124,7 +200,7 @@ export async function bakePartners() {
   }
   renderAndWrite(st, year);
   log('partner bake:', pulled, 'pulled,', failed, 'failed, coverage', Object.keys(st.data).length, '/', ranked.length, 'year', year);
-  return { pulled, failed, throttled, coverage: Object.keys(st.data).length, total: ranked.length, year };
+  return { pulled, failed, throttled, trend, coverage: Object.keys(st.data).length, total: ranked.length, year };
 }
 
 function renderAndWrite(st, year) {
