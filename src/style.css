@@ -293,3 +293,12 @@ a { color: var(--ds-teal); }
   .search-stick { position: static; box-shadow: none; }
   .result-link, .brief-box, .link-panel, .cmp-col, .ccy-card, .currency-card, .sanctions-card { box-shadow: none; }
 }
+
+.lc-panel { border: 1px solid var(--ds-hairline); border-radius: 12px; padding: 14px; }
+.lc-inputs { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.lc-inputs .sfield { flex: 1 1 150px; }
+.lc-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.lc-table td { border-top: 1px solid var(--ds-hairline); padding: 8px 6px; font-size: 14px; }
+.lc-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lc-table .lc-total td { font-weight: 700; }
+.lc-src { margin-top: 10px; }

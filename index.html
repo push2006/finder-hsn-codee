@@ -308,6 +308,15 @@ a { color: var(--ds-teal); }
   .result-link, .brief-box, .link-panel, .cmp-col, .ccy-card, .currency-card, .sanctions-card { box-shadow: none; }
 }
 
+.lc-panel { border: 1px solid var(--ds-hairline); border-radius: 12px; padding: 14px; }
+.lc-inputs { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.lc-inputs .sfield { flex: 1 1 150px; }
+.lc-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.lc-table td { border-top: 1px solid var(--ds-hairline); padding: 8px 6px; font-size: 14px; }
+.lc-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lc-table .lc-total td { font-weight: 700; }
+.lc-src { margin-top: 10px; }
+
 </style>
 </head>
 <body>
@@ -13444,6 +13453,95 @@ function checkChanges(db, keys) {
 }
 
 /* ---------- detail ---------- */
+
+function parseAdvalorem(d) {
+  const s = String(d || '').trim();
+  if (!s) return null;
+  if (/^free\b|^0\s*%/i.test(s)) return 0;
+  const m = s.match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? parseFloat(m[1]) : null;
+}
+function lcMoney(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function landedCostHtml(e) {
+  const sys = e[0];
+  let mode, rateDesc = '';
+  if (sys === 1) {
+    const g = gstFor(e[1]);
+    mode = 'in';
+    rateDesc = g ? ('IGST ' + g[0] + ' from the baked GST 2.0 schedule') : 'IGST rate not found in the baked GST schedule';
+  } else {
+    const pct = parseAdvalorem(e[5]);
+    if (e[5] && pct === null) mode = 'specific';
+    else if (pct !== null) mode = sys === 2 ? 'us' : 'adval';
+    else mode = 'none';
+    rateDesc = e[5] ? ('General duty ' + e[5] + ' (baked official rate)') : '';
+  }
+  if (mode === 'none') {
+    return '<div class="detail-sec no-print lc-panel"><h3>Landed cost estimate</h3><p class="muted">This system publishes no open general rate for this line in the dataset, so an automatic estimate would be invented - use the official portal link at the bottom of this page for the current rate.</p></div>';
+  }
+  if (mode === 'specific') {
+    return '<div class="detail-sec no-print lc-panel"><h3>Landed cost estimate</h3><p class="muted">This line carries a specific duty rate (' + esc(e[5]) + ') - the duty depends on the shipped quantity and unit, which this page does not know. Any total here would mislead; use the official tariff calculator linked at the bottom of this page.</p></div>';
+  }
+  let inputs = '<div class="lc-inputs">' +
+    '<label class="sfield"><span class="slabel">Goods value (USD)</span><input id="lc-goods" inputmode="decimal" placeholder="10000" autocomplete="off"></label>' +
+    '<label class="sfield"><span class="slabel">Freight (USD)</span><input id="lc-freight" inputmode="decimal" placeholder="800" autocomplete="off"></label>' +
+    '<label class="sfield"><span class="slabel">Insurance (USD)</span><input id="lc-ins" inputmode="decimal" placeholder="0" autocomplete="off"></label>';
+  if (mode === 'in') inputs += '<label class="sfield"><span class="slabel">BCD % (basic customs duty)</span><input id="lc-bcd" inputmode="decimal" placeholder="e.g. 10 - check ICEGATE" autocomplete="off"></label>';
+  inputs += '</div>';
+  const srcNote = mode === 'in'
+    ? 'IGST rate from the baked GST 2.0 schedule (Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025). BCD is your input - it varies by line and changes; verify on the ICEGATE duty calculator. Social welfare surcharge = 10% of BCD (official rule). Excludes port, handling and other fees. Estimate only - verify before filing.'
+    : mode === 'us'
+      ? 'Duty = baked general (MFN) rate from the official USITC HTS on the entered (CIF) value. Merchandise processing fee 0.3464% ad valorem (yearly min/max caps not applied) and harbor maintenance fee 0.125% (ocean freight only) are official CBP fees. State and local taxes, broker and port fees not included. Estimate only - verify before filing.'
+      : 'Duty = baked general (MFN) rate from this system\'s official tariff on the CIF value. Destination VAT/GST and port fees are not baked for this system - check its official portal below. Estimate only - verify before filing.';
+  return '<div class="detail-sec no-print lc-panel"><h3>Landed cost estimate</h3>' +
+    '<p class="muted">' + esc(rateDesc) + '. Type your shipment values - the full duty and tax cascade computes on this page; nothing is sent anywhere.</p>' +
+    inputs + '<div id="lc-out"></div>' +
+    '<p class="muted lc-src">' + esc(srcNote) + '</p></div>';
+}
+function paintLanded(e) {
+  const out = el('lc-out'); if (!out) return;
+  const num = (id) => { const x = el(id); if (!x) return 0; const v = parseFloat(String(x.value).replace(/,/g, '')); return isFinite(v) && v > 0 ? v : 0; };
+  const goods = num('lc-goods'), fr = num('lc-freight'), ins = num('lc-ins');
+  if (!goods) { out.innerHTML = '<p class="muted">Enter the goods value to see the breakdown.</p>'; return; }
+  const cif = goods + fr + ins;
+  const rows = [['Assessable value (CIF = goods + freight + insurance)', cif]];
+  let total = cif, note = '';
+  if (e[0] === 1) {
+    const g = gstFor(e[1]);
+    const igst = g ? parseAdvalorem(g[0]) : null;
+    const bcdPct = num('lc-bcd');
+    const bcd = cif * bcdPct / 100;
+    const sws = bcd * 0.10;
+    rows.push(['Basic customs duty (BCD ' + bcdPct + '% - your input)', bcd]);
+    rows.push(['Social welfare surcharge (10% of BCD)', sws]);
+    if (igst !== null) {
+      const igstAmt = (cif + bcd + sws) * igst / 100;
+      rows.push(['IGST ' + igst + '% on (CIF + BCD + SWS)', igstAmt]);
+      total = cif + bcd + sws + igstAmt;
+    } else { note = 'IGST rate missing from the baked schedule - total excludes IGST.'; total = cif + bcd + sws; }
+  } else if (e[0] === 2) {
+    const pct = parseAdvalorem(e[5]) || 0;
+    const duty = cif * pct / 100;
+    const mpf = goods * 0.003464;
+    const hmf = goods * 0.00125;
+    rows.push(['General duty ' + pct + '% on CIF', duty]);
+    rows.push(['Merchandise processing fee 0.3464% on goods value', mpf]);
+    rows.push(['Harbor maintenance fee 0.125% (ocean only)', hmf]);
+    total = cif + duty + mpf + hmf;
+  } else {
+    const pct = parseAdvalorem(e[5]) || 0;
+    const duty = cif * pct / 100;
+    rows.push(['General duty ' + pct + '% on CIF', duty]);
+    total = cif + duty;
+  }
+  rows.push(['Estimated landed cost', total]);
+  const pctOver = (total - goods) / goods * 100;
+  let h = '<table class="lc-table"><tbody>' + rows.map((r, i) => '<tr' + (i === rows.length - 1 ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + lcMoney(r[1]) + ' USD</td></tr>').join('') +
+    '<tr><td>Duty + tax over goods value</td><td>' + pctOver.toFixed(1) + '%</td></tr></tbody></table>';
+  if (note) h += '<p class="muted">' + esc(note) + '</p>';
+  out.innerHTML = h;
+}
+
 function gstRowHtml(code) {
   const g = gstFor(code);
   if (!g) return '<div><dt>GST rate</dt><dd>Not found in the GST 2.0 rate schedules - check the official CBIC repository: <a href="https://taxinformation.cbic.gov.in/" target="_blank" rel="noreferrer">taxinformation.cbic.gov.in</a></dd></div>';
@@ -14198,6 +14296,7 @@ function detailHtml(idx) {
   }
   s += linkPanelHtml(e, idx);
   s += dutyCompareHtml(e);
+  s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += tradeCardHtml(e[4], e[1]);
   if (path.length > 1) {
@@ -14253,6 +14352,11 @@ function paintDetail() {
   if (slB) slB.addEventListener('click', () => { toggleShort(key); paintDetail(); paintNav(); });
   const noteT = el('d-note');
   if (noteT) noteT.addEventListener('input', () => { setNote(key, noteT.value); });
+  if (el('lc-goods')) {
+    const lcUpd = () => paintLanded(e);
+    ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
+    paintLanded(e);
+  }
   el('ai-settings').addEventListener('click', () => { V.needKey = false; V.settingsOpen = !V.settingsOpen; paintDetail(); });
   if (V.settingsOpen) {
     el('api-save').addEventListener('click', () => {
