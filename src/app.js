@@ -58,6 +58,8 @@ const AI_PROXY_TOKEN = ''; // set only if you also set APP_SECRET on the worker
 // separate several keys to rotate when one hits its daily limit.
 const BUILTIN_GEMINI_KEYS = 'AIzaSyAeLPnOoR_M_jTJnj9dYGVOPyUJMJ91dDw';
 const BUILTIN_GROQ_KEYS = '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';
+const BUILTIN_MISTRAL_KEYS = 'mstrl_WQxT5dNryrhLiD89AJX9HMYnJzyGHn38_1iijpQ';
+const BUILTIN_NVIDIA_KEYS = '';
 
 // ==== AI model swap points: change a model by editing one line ====
 const GEMINI_MODEL = 'gemini-3.8-flash'; // report writing; free tier confirmed 22 Sep 2026. Google Search grounding is NOT in the free tier - the report call retries ungrounded automatically.
@@ -66,23 +68,32 @@ const GROQ_MODEL_FALLBACK = 'openai/gpt-oss-20b'; // used if the primary is busy
 const GROQ_MODELS = [GROQ_MODEL, GROQ_MODEL_FALLBACK];
 // Gemini chain: tried in order when a model is retired, busy or quota-maxed.
 const GEMINI_MODELS = [GEMINI_MODEL, 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
-const builtinPools = { gemini: { off: 0 }, groq: { off: 0 } };
-const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : BUILTIN_GEMINI_KEYS).split(',').map((k) => k.trim()).filter(Boolean);
-const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEYS.trim() || BUILTIN_GROQ_KEYS.trim());
+// Extra rotation members: Mistral (free tier on la Plateforme) and NVIDIA NIM
+// (free key, 90-day expiry - an expired key is skipped, never fatal).
+const MISTRAL_MODELS = ['mistral-small-latest', 'open-mistral-nemo', 'ministral-8b-latest'];
+const NVIDIA_MODELS = ['meta/llama-3.3-70b-instruct', 'meta/llama-3.1-70b-instruct', 'meta/llama-3.1-8b-instruct'];
+let mistralModelUsed = '', nvidiaModelUsed = '';
+const PROVIDER_ORDER = ['groq', 'gemini', 'mistral', 'nvidia'];
+const PROVIDER_LABEL = { groq: 'Groq', gemini: 'Gemini', mistral: 'Mistral', nvidia: 'NVIDIA' };
+const builtinPools = { gemini: { off: 0 }, groq: { off: 0 }, mistral: { off: 0 }, nvidia: { off: 0 } };
+const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : kind === 'mistral' ? BUILTIN_MISTRAL_KEYS : kind === 'nvidia' ? BUILTIN_NVIDIA_KEYS : BUILTIN_GEMINI_KEYS).split(',').map((k) => k.trim()).filter(Boolean);
+const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEYS.trim() || BUILTIN_GROQ_KEYS.trim() || BUILTIN_MISTRAL_KEYS.trim() || BUILTIN_NVIDIA_KEYS.trim());
 let aiSharedKey = false;
 let aiProviderUsed = 'gemini';
 let aiLiveSearch = false;
 let aiCrossNote = null; // { by, ok, issues } - second-provider fact-check result for reports
 // Second-opinion check: when both providers' keys exist, the other provider reviews the answer.
+let aiCrossBy = null;
 async function aiCrossCall(producer, prompt, opts) {
-  const target = producer === 'groq' ? 'gemini' : 'groq';
-  try {
-    if (V.apiKey && ownProvider() === target) {
-      return await (target === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false));
-    }
-    const pool = builtinKeys(target);
-    if (pool.length) return await (target === 'groq' ? groqPost(pool, prompt, opts) : geminiText(pool, prompt, opts, false));
-  } catch (e) { /* second opinion is best-effort; never blocks the answer */ }
+  aiCrossBy = null;
+  for (const target of PROVIDER_ORDER) {
+    if (target === producer) continue;
+    try {
+      if (V.apiKey && ownProvider() === target) { const r = await PROVIDER_CALL[target](V.apiKey, prompt, opts); aiCrossBy = target; return r; }
+      const pool = builtinKeys(target);
+      if (pool.length) { const r = await PROVIDER_CALL[target](pool, prompt, opts); aiCrossBy = target; return r; }
+    } catch (e) { /* second opinion is best-effort; never blocks the answer */ }
+  }
   return null;
 }
 const aiHasBoth = () => {
@@ -91,10 +102,16 @@ const aiHasBoth = () => {
   if (AI_PROXY_URL) { set.add('gemini'); set.add('groq'); }
   if (builtinKeys('groq').length) set.add('groq');
   if (builtinKeys('gemini').length) set.add('gemini');
+  if (builtinKeys('mistral').length) set.add('mistral');
+  if (builtinKeys('nvidia').length) set.add('nvidia');
   return set.size >= 2;
 };
 const geminiAiLabel = () => (aiProviderUsed === 'groq'
   ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', ' + (aiLiveSearch ? 'live web search via Groq browser search (Exa)' : 'model knowledge only - no live search')
+  : aiProviderUsed === 'mistral'
+  ? 'Mistral ' + (mistralModelUsed || MISTRAL_MODELS[0]) + ', model knowledge only - no live search'
+  : aiProviderUsed === 'nvidia'
+  ? 'NVIDIA ' + (nvidiaModelUsed || NVIDIA_MODELS[0]) + ', model knowledge only - no live search'
   : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
@@ -148,7 +165,13 @@ const API_KEY_STORE = 'hsn-gemini-api-key';
 const API_PROVIDER_STORE = 'hsn-ai-provider';
 // Visitor's own key always wins over the proxy. If the worker has no keys for a
 // job's own provider yet, the other provider covers it (the AI label stays honest).
-const ownProvider = () => (V.apiProvider === 'groq' || (V.apiProvider !== 'gemini' && /^gsk_/i.test(V.apiKey.trim())) ? 'groq' : 'gemini');
+const ownProvider = () => {
+  if (['groq', 'gemini', 'mistral', 'nvidia'].includes(V.apiProvider)) return V.apiProvider;
+  const k = V.apiKey.trim();
+  if (/^gsk_/i.test(k)) return 'groq';
+  if (/^nvapi-/i.test(k)) return 'nvidia';
+  return 'gemini';
+};
 async function geminiText(apiKey, prompt, opts, grounded) {
   const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: opts.temperature, maxOutputTokens: opts.maxTokens } };
   if (grounded) body.tools = [{ google_search: {} }];
@@ -196,16 +219,67 @@ async function groqPost(apiKey, prompt, opts) {
   if (netFail) throw new Error('No connection to the AI service. Check the internet connection and try again.');
   throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
 }
+// Mistral + NVIDIA speak the same OpenAI chat-completions shape as Groq.
+async function oaiPoolPost(kind, url, models, apiKey, prompt, opts) {
+  if (Array.isArray(apiKey)) {
+    const pool = builtinPools[kind];
+    let lastErr = null;
+    for (let k = 0; k < apiKey.length; k++) {
+      const ki = (pool.off + k) % apiKey.length;
+      try { const r = await oaiPoolPost(kind, url, models, apiKey[ki], prompt, opts); pool.off = ki; return r; }
+      catch (err) {
+        lastErr = err;
+        if (/not accepted|refused|limit reached|expired/i.test(err.message || '')) continue;
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = 'Bearer ' + apiKey.trim();
+  else if (AI_PROXY_TOKEN) headers['x-app-token'] = AI_PROXY_TOKEN;
+  const finalUrl = apiKey ? url : AI_PROXY_URL + '/' + kind + '/v1/chat/completions';
+  const label = kind === 'mistral' ? 'Mistral' : 'NVIDIA';
+  let quotaHit = false, transientHit = false, netFail = false, authFail = false;
+  for (const m of models) {
+    let res, data;
+    try {
+      res = await fetch(finalUrl, { method: 'POST', headers, body: JSON.stringify({ model: m, messages: [{ role: 'user', content: prompt }], temperature: opts.temperature, max_tokens: opts.maxTokens }) });
+      data = await res.json().catch(() => ({}));
+    } catch (err) { netFail = true; continue; }
+    if (res.ok) { if (kind === 'mistral') mistralModelUsed = m; else nvidiaModelUsed = m; return String((((data.choices || [])[0] || {}).message || {}).content || ''); }
+    const msg = (data && data.error && (data.error.message || data.error)) || (label + ' API error ' + res.status);
+    if (/keys configured|not configured/i.test(msg)) throw new Error('AI provider not configured on the server: ' + msg);
+    if (apiKey && (res.status === 401 || res.status === 403)) { authFail = true; break; }
+    if (res.status === 429 || res.status === 413) { quotaHit = true; continue; }
+    if (res.status === 503 || res.status === 500 || /overloaded|try again later/i.test(msg)) { transientHit = true; continue; }
+    if (res.status === 404 || /decommissioned|no longer supported|does not exist|not found/i.test(msg)) continue;
+    throw new Error('AI generation failed (' + msg + '). The offline data report still works - try again later.');
+  }
+  if (authFail) throw new Error(kind === 'nvidia' ? 'NVIDIA free key expired (90-day limit) - rotating on.' : 'The ' + label + ' key was not accepted. Check the key in AI settings.');
+  if (quotaHit) throw new Error('Free ' + label + ' limit reached for now. Try again after the quota resets.');
+  if (transientHit) throw new Error('The AI models are busy right now. Wait a minute and try again.');
+  if (netFail) throw new Error('No connection to the AI service. Check the internet connection and try again.');
+  throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
+}
+const mistralPost = (apiKey, prompt, opts) => oaiPoolPost('mistral', 'https://api.mistral.ai/v1/chat/completions', MISTRAL_MODELS, apiKey, prompt, opts);
+const nvidiaPost = (apiKey, prompt, opts) => oaiPoolPost('nvidia', 'https://integrate.api.nvidia.com/v1/chat/completions', NVIDIA_MODELS, apiKey, prompt, opts);
+const PROVIDER_CALL = { groq: (k, p, o) => groqPost(k, p, o), gemini: (k, p, o) => geminiText(k, p, o, false), mistral: (k, p, o) => mistralPost(k, p, o), nvidia: (k, p, o) => nvidiaPost(k, p, o) };
 async function aiPickText(prompt, opts) {
   aiLiveSearch = false;
   if (V.apiKey) {
     const p = ownProvider();
     aiSharedKey = false; aiProviderUsed = p;
-    try { return p === 'groq' ? await groqPost(V.apiKey, prompt, opts) : await geminiText(V.apiKey, prompt, opts, false); }
+    try { return await PROVIDER_CALL[p](V.apiKey, prompt, opts); }
     catch (err) {
       if (/not accepted|refused/i.test(err.message || '')) throw err;
-      const alt = builtinKeys(p === 'groq' ? 'gemini' : 'groq');
-      if (alt.length) { aiSharedKey = true; aiProviderUsed = p === 'groq' ? 'gemini' : 'groq'; return p === 'groq' ? geminiText(alt, prompt, opts, false) : groqPost(alt, prompt, opts); }
+      for (const prov of PROVIDER_ORDER) {
+        if (prov === p) continue;
+        const alt = builtinKeys(prov);
+        if (!alt.length) continue;
+        aiSharedKey = true; aiProviderUsed = prov;
+        try { return await PROVIDER_CALL[prov](alt, prompt, opts); } catch (e2) { /* try the next provider */ }
+      }
       throw err;
     }
   }
@@ -215,12 +289,14 @@ async function aiPickText(prompt, opts) {
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'gemini'; return geminiText('', prompt, opts, false); }
   }
   const errs = [];
-  const gk = builtinKeys('groq');
-  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; try { return await groqPost(gk, prompt, opts); } catch (err) { errs.push(err); } }
-  const mk = builtinKeys('gemini');
-  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; try { return await geminiText(mk, prompt, opts, false); } catch (err) { errs.push(err); } }
+  for (const prov of PROVIDER_ORDER) {
+    const pool = builtinKeys(prov);
+    if (!pool.length) continue;
+    aiSharedKey = true; aiProviderUsed = prov;
+    try { return await PROVIDER_CALL[prov](pool, prompt, opts); } catch (err) { errs.push(err); }
+  }
   if (!errs.length) throw new Error('no-ai');
-  if (errs.every((e) => /limit reached/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
+  if (errs.every((e) => /limit reached|expired/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
   throw errs[errs.length - 1];
 }
 async function aiReportText(prompt, grounded, opts) {
@@ -235,11 +311,15 @@ async function aiReportText(prompt, grounded, opts) {
   };
   if (V.apiKey) {
     const p = ownProvider();
-    try { return p === 'groq' ? await groqReport(V.apiKey, false) : await geminiReport(V.apiKey, false); }
+    try { return p === 'groq' ? await groqReport(V.apiKey, false) : p === 'gemini' ? await geminiReport(V.apiKey, false) : (aiSharedKey = false, aiProviderUsed = p, await PROVIDER_CALL[p](V.apiKey, prompt, opts)); }
     catch (err) {
       if (/not accepted|refused/i.test(err.message || '')) throw err;
-      const alt = builtinKeys(p === 'groq' ? 'gemini' : 'groq');
-      if (alt.length) return p === 'groq' ? geminiReport(alt, true) : groqReport(alt, true);
+      for (const prov of PROVIDER_ORDER) {
+        if (prov === p) continue;
+        const alt = builtinKeys(prov);
+        if (!alt.length) continue;
+        try { return prov === 'groq' ? await groqReport(alt, true) : prov === 'gemini' ? await geminiReport(alt, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](alt, prompt, opts)); } catch (e2) { /* try the next provider */ }
+      }
       throw err;
     }
   }
@@ -249,12 +329,13 @@ async function aiReportText(prompt, grounded, opts) {
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
   }
   const errs = [];
-  const gk = builtinKeys('groq');
-  if (gk.length) { try { return await groqReport(gk, true); } catch (err) { errs.push(err); } }
-  const mk = builtinKeys('gemini');
-  if (mk.length) { try { return await geminiReport(mk, true); } catch (err) { errs.push(err); } }
+  for (const prov of PROVIDER_ORDER) {
+    const pool = builtinKeys(prov);
+    if (!pool.length) continue;
+    try { return prov === 'groq' ? await groqReport(pool, true) : prov === 'gemini' ? await geminiReport(pool, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](pool, prompt, opts)); } catch (err) { errs.push(err); }
+  }
   if (!errs.length) throw new Error('no-ai');
-  if (errs.every((e) => /limit reached/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
+  if (errs.every((e) => /limit reached|expired/i.test(e.message || ''))) throw new Error('Free AI limit reached on every provider for now. Try again after the quota resets.');
   throw errs[errs.length - 1];
 }
 
@@ -880,10 +961,10 @@ async function tplNarrative(db, idx, apiKey) {
       if (m > 0) { const from = text.lastIndexOf('{', m); if (from >= 0 && from < b) { try { obj = JSON.parse(text.slice(from, b + 1)); } catch { /* next attempt */ } } }
     }
     if (obj && typeof obj === 'object') {
-      for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/【[^】]*】/g, '').trim();
+      for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/ã[^ã]*ã/g, '').trim();
       geminiGrounded = grounded && aiProviderUsed === 'gemini';
       if (aiHasBoth()) {
-        const by = aiProviderUsed === 'groq' ? 'Gemini' : 'Groq';
+        const by = PROVIDER_LABEL[aiCrossBy] || 'a second provider';
         const facts = comtradeFacts(e).replace(/\n$/, '') || 'No Comtrade figures baked for this code yet.';
         const chk = await aiCrossCall(aiProviderUsed,
           'Fact-check an AI-written trade report against official figures. ' + facts + ' India GST and duty rates in the dataset are official. ' +
@@ -939,7 +1020,7 @@ function tplNarr(narr, key) {
 function tplDocTable(s) {
   // "Document - issuing authority - why needed" lines become a 3-column table; fall back to the bullet list.
   const lines = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
-  const rows = lines.map((l) => l.replace(/^[-*•\d.)\s]+/, '')).map((l) => {
+  const rows = lines.map((l) => l.replace(/^[-*â¢\d.)\s]+/, '')).map((l) => {
     const parts = l.split(/\s+-\s+/);
     return parts.length >= 3 ? [parts[0], parts[1], parts.slice(2).join(' - ')] : null;
   }).filter(Boolean);
@@ -950,7 +1031,7 @@ function tplDocTable(s) {
 function tplCheck(s) {
   const items = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3 && /[a-zA-Z]/.test(l));
   if (!items.length) return '';
-  return '<ul class="tpl-check">' + items.map((l) => '<li>' + esc(l.replace(/^[-*•\d.\)\s]+/, '')) + '</li>').join('') + '</ul>';
+  return '<ul class="tpl-check">' + items.map((l) => '<li>' + esc(l.replace(/^[-*â¢\d.\)\s]+/, '')) + '</li>').join('') + '</ul>';
 }
 function tplBars(rows, unit) {
   const max = Math.max.apply(null, rows.map((r) => r[1]).concat([1]));
@@ -1330,7 +1411,7 @@ function detailHtml(idx) {
   if (V.settingsOpen) {
     const selProv = V.apiProvider || (/^gsk_/i.test(apiKey.trim()) ? 'groq' : 'gemini');
     s += '<div class="api-settings">' +
-      '<label class="sfield"><span class="slabel">Key provider</span><select id="api-provider"><option value="gemini"' + (selProv === 'gemini' ? ' selected' : '') + '>Gemini (Google) - can search the live web</option><option value="groq"' + (selProv === 'groq' ? ' selected' : '') + '>Groq - faster answers</option></select></label>' +
+      '<label class="sfield"><span class="slabel">Key provider</span><select id="api-provider"><option value="gemini"' + (selProv === 'gemini' ? ' selected' : '') + '>Gemini (Google) - can search the live web</option><option value="groq"' + (selProv === 'groq' ? ' selected' : '') + '>Groq - faster answers</option><option value="mistral"' + (selProv === 'mistral' ? ' selected' : '') + '>Mistral - free tier</option><option value="nvidia"' + (selProv === 'nvidia' ? ' selected' : '') + '>NVIDIA - free key (90-day)</option></select></label>' +
       '<label class="sfield"><span class="slabel">API key</span><input type="password" id="api-key" value="' + esc(apiKey) + '" placeholder="Paste Gemini or Groq key once" autocomplete="off"></label>' +
       '<div class="action-row"><button class="file-button is-compact" id="api-save">Save on this phone</button>' +
       (apiKey ? '<button class="file-button is-compact" data-variant="secondary" id="api-remove">Remove key</button>' : '') +
@@ -1482,7 +1563,7 @@ function paintShortlist() {
       const e = db.entries[x.i];
       lines.push([SYS[e[0]].name, fmtCode(e[0], e[1]), pretty(e[2]), e[5] || '', S.notes[x.k] || '', SYS[e[0]].url].map(q).join(','));
     });
-    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['ï»¿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'hsn-shortlist.csv';
@@ -1559,7 +1640,7 @@ async function classifyRun() {
       V.clsHits = clean;
       V.clsCross = null;
       if (aiHasBoth()) {
-        const by = aiProviderUsed === 'groq' ? 'Gemini' : 'Groq';
+        const by = PROVIDER_LABEL[aiCrossBy] || 'a second provider';
         const chk = await aiCrossCall(aiProviderUsed,
           'Product: "' + text.replace(/"/g, "'") + '". Another AI suggested these HS 2022 6-digit codes for it, best first: ' + clean.map((h) => h.code + ' (' + h.why + ')').join('; ') + '. Are these real HS 2022 subheadings and is the first one the best fit? Reply ONLY JSON: {"agree":true} or {"agree":false,"better":"6-digit code","why":"one short line"}.',
           { temperature: 0, maxTokens: 4000 });
