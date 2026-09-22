@@ -30,6 +30,10 @@ const tradetrend = plain('tradetrend.ts', 'TRADE_TREND')
   .replace('export const TRADE_TREND_YEARS =', 'const TRADE_TREND_YEARS =');
 const tradeseason = plain('tradeseson.ts', 'TRADE_SEASON')
   .replace('export const TRADE_SEASON_YEARS =', 'const TRADE_SEASON_YEARS =');
+const add = read('add.ts')
+  .replace('export const ADD_MEASURES =', 'const ADD_MEASURES =')
+  .replace('export const ADD_ONGOING =', 'const ADD_ONGOING =')
+  .replace('export const ADD_SRC =', 'const ADD_SRC =');
 const certs = read('certs.ts')
   .replace('export const CERT_RULES =', 'const CERT_RULES =')
   .replace('export const CERT_SRC =', 'const CERT_SRC =');
@@ -76,6 +80,7 @@ ${trade6}
 ${tradepartners}
 ${tradetrend}
 ${tradeseason}
+${add}
 ${certs}
 ${fta}
 ${scomet}

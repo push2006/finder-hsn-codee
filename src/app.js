@@ -12,6 +12,7 @@ import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
+import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -1069,6 +1070,45 @@ function ftaHtml(code) {
 }
 
 
+
+const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'imports']);
+function addHtml(code, desc) {
+  const digs = String(code || '').replace(/\D/g, '');
+  if (!digs) return '';
+  const hits = [];
+  for (const m of ADD_MEASURES) {
+    const lines = m[0].split(',');
+    let rel = false, exact = false;
+    for (const h of lines) {
+      if (digs === h) exact = true;
+      else if (h.slice(0, 6) === digs.slice(0, 6) && digs.length >= 6) rel = true;
+    }
+    if (exact || rel) hits.push({ m: m, rel: rel && !exact });
+  }
+  const dl = (' ' + String(desc || '').toLowerCase() + ' ');
+  const ong = [];
+  for (const o of ADD_ONGOING) {
+    const toks = o[0].toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((t) => t.length >= 5 && !ADD_STOP.has(t));
+    if (toks.some((t) => dl.indexOf(t) !== -1)) ong.push(o);
+  }
+  if (!hits.length && !ong.length) return '';
+  let h = '<div class="detail-sec"><h3>Anti-dumping duty (India import)</h3><ul class="certs-l">';
+  for (const x of hits.slice(0, 6)) {
+    const m = x.m;
+    h += '<li><strong>' + esc(m[1]) + '</strong> from ' + esc(m[2]) + ': <strong>' + esc(m[3]) + '</strong> anti-dumping duty, ' + esc(m[6]).toLowerCase() + (m[5] ? ' until ' + esc(m[5]) : '') + ' <span class="muted">(CBIC notfn ' + esc(m[4]) + ')' + (x.rel ? ' - on related line ' + esc(m[0].split(',')[0]) + ', confirm your exact line' : '') + '</span></li>';
+  }
+  h += '</ul>';
+  if (ong.length) {
+    h += '<h4>Under investigation at DGTR (no duty yet)</h4><ul class="certs-l">';
+    for (const o of ong.slice(0, 4)) {
+      h += '<li>' + esc(o[0]) + ' <span class="muted">(' + esc(o[1]) + ') - possible match, verify: <a href="https://www.dgtr.gov.in' + esc(o[2]) + '" target="_blank" rel="noopener">DGTR case</a></span></li>';
+    }
+    h += '</ul>';
+  }
+  h += '<p class="muted">' + esc(ADD_SRC) + '</p></div>';
+  return h;
+}
+
 function certsHtml(chapter) {
   const ch = parseInt(chapter, 10);
   if (!ch) return '';
@@ -1676,6 +1716,7 @@ function detailHtml(idx) {
   s += tradeCardHtml(e[4], e[1]);
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
+  s += addHtml(e[1], e[2]);
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
