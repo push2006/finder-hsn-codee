@@ -9,6 +9,7 @@ import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
+import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -979,6 +980,41 @@ function trendChart(tr) {
   return '<div class="tpl-chart">' + svg + '</svg></div>';
 }
 
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function seasonChart(sm, sx) {
+  const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  const max = Math.max.apply(null, sm.concat(sx).concat([1]));
+  const w = 660, h = 150, x0 = 30, y0 = h - 24, bw = 9, bgap = 3;
+  const groupW = (w - x0) / 12;
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" role="img">';
+  svg += '<line x1="' + (x0 - 8) + '" y1="' + y0 + '" x2="' + w + '" y2="' + y0 + '" stroke="#ccc" stroke-width="1"/>';
+  for (let i = 0; i < 12; i++) {
+    const gx = x0 + Math.round(i * groupW);
+    const ih = Math.round((y0 - 22) * (sm[i] || 0) / max);
+    const xh = Math.round((y0 - 22) * (sx[i] || 0) / max);
+    svg += '<rect x="' + gx + '" y="' + (y0 - ih) + '" width="' + bw + '" height="' + Math.max(1, ih) + '" rx="2" fill="#4a5a8a"><title>' + MONTH_NAMES[i] + ' imports ' + esc(fmtUsd(sm[i] || 0)) + '</title></rect>' +
+      '<rect x="' + (gx + bw + bgap) + '" y="' + (y0 - xh) + '" width="' + bw + '" height="' + Math.max(1, xh) + '" rx="2" fill="#8a7b5c"><title>' + MONTH_NAMES[i] + ' exports ' + esc(fmtUsd(sx[i] || 0)) + '</title></rect>' +
+      '<text x="' + (gx + bw) + '" y="' + (h - 8) + '" font-size="10" text-anchor="middle" fill="#666" font-family="-apple-system,Arial,sans-serif">' + months[i] + '</text>';
+  }
+  svg += '<text x="' + (x0 - 8) + '" y="13" font-size="11" fill="#4a5a8a" font-family="-apple-system,Arial,sans-serif">&#9632; imports</text>' +
+    '<text x="' + (x0 + 62) + '" y="13" font-size="11" fill="#8a7b5c" font-family="-apple-system,Arial,sans-serif">&#9632; exports</text>';
+  return '<div class="tpl-chart">' + svg + '</svg></div>';
+}
+function seasonHtml(c6) {
+  const s = c6 ? TRADE_SEASON[c6] : null;
+  if (!s) return '';
+  const sm = s[0], sx = s[1];
+  const tot = sm.map((v, i) => (v || 0) + (sx[i] || 0));
+  const sumAll = tot.reduce((a, b) => a + b, 0);
+  if (!sumAll) return '';
+  let pk = 0, tr = 0;
+  for (let i = 1; i < 12; i++) { if (tot[i] > tot[pk]) pk = i; if (tot[i] < tot[tr]) tr = i; }
+  const avg = sumAll / 12;
+  const swing = Math.round((tot[pk] - tot[tr]) / avg * 100);
+  return seasonChart(sm, sx) + '<p>Seasonality ' + TRADE_SEASON_YEARS[0] + '-' + TRADE_SEASON_YEARS[1] + ' (monthly average): combined trade peaks in <strong>' + MONTH_NAMES[pk] + '</strong> and dips in <strong>' + MONTH_NAMES[tr] + '</strong>' + (swing > 25 ? ' - a ' + swing + '% swing around the average month; plan inventory and contracts around it' : ' - fairly even across the year') + '.</p>';
+}
+
 function tradeCardHtml(chapter, code) {
   const t = TRADE_CH[chapter];
   const c6 = code ? code.slice(0, 6) : '';
@@ -997,6 +1033,7 @@ function tradeCardHtml(chapter, code) {
       const grow = (a, b) => { if (!(a > 0 && b > 0)) return ''; const r = b / a, p = Math.round((r - 1) * 100); const t = r >= 1.05 ? 'up ' + r.toFixed(1).replace(/\.0$/, '') + 'x' : p === 0 ? 'roughly flat' : (p > 0 ? 'up ' + p : 'down ' + (-p)) + '%'; return ' (' + t + ')'; };
       const kg = (last[3] || last[4]) ? ' Volume in ' + last[0] + ': net weight ' + fmtQty(last[3], 'kg') + ' in, ' + fmtQty(last[4], 'kg') + ' out.' : '';
       return trendChart(tr) + '<p>Trend ' + first[0] + ' to ' + last[0] + ': imports ' + fmtUsd(first[1]) + ' to ' + fmtUsd(last[1]) + grow(first[1], last[1]) + ' - exports ' + fmtUsd(first[2]) + ' to ' + fmtUsd(last[2]) + grow(first[2], last[2]) + '.' + kg + '</p>'; })() +
+    seasonHtml(c6) +
     '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners, volumes and net weight where reported. Baked into the dataset, not fetched live.</p></div>';
 }
 
