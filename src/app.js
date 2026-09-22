@@ -484,7 +484,7 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
   };
   // Relevance order: exact whole-word (token) matches first, substring-only hits last;
   // ties break to earliest mention, then shallower codes and tighter descriptions.
-  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u'));
+  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}-])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}-]|$)', 'u'));
   const tokRes = mkTokRes(words);
   const phrase = descQ.toLowerCase().trim().replace(/\s+/g, ' ');
   const rank = (idxs, rWords) => {
@@ -500,8 +500,9 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
       }
       const ph = !rWords && words.length > 1 && h.includes(phrase) ? 0 : 1;
       const nec = /\bn\.?e\.?c\b/.test(h) ? 1 : 0;
-      const sysR = db.entries[i][0] === 0 ? 0 : 1;
-      return [ph, -tok, nec, sysR, posSum, db.entries[i][1].length, h.length, i];
+      /* Spec: the direct deepest national line outranks its family/parent (every system). */
+      const sysR = db.entries[i][0] === 0 ? 1 : 0;
+      return [ph, -tok, nec, sysR, posSum, -db.entries[i][1].length, h.length, i];
     });
     keyed.sort((a, b) => {
       for (let k = 0; k < 7; k++) { if (a[k] !== b[k]) return a[k] - b[k]; }
@@ -510,7 +511,18 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
     return keyed.map((x) => x[7]);
   };
   const strict = run(words.map((w) => [w]));
-  const alias = ALIASES[descQ.toLowerCase().trim().replace(/\s+/g, ' ')];
+  // Typo correction runs before the alias lookup so a misspelt phrase still
+  // hits its curated word-sets ('high speed disel' -> 'high speed diesel').
+  const longW = words.filter((w) => w.length >= 5);
+  const canFuzzy = strict.length < 5 && words.length > 0 && longW.length > 0 && longW.length <= 3;
+  const variants = canFuzzy ? words.map((w) => {
+    const vs = [w];
+    if (w.length >= 5) { for (const v of db.vocab) { if (Math.abs(v.length - w.length) <= 1 && v[0] === w[0] && lev1(w, v)) vs.push(v); if (vs.length > 12) break; } }
+    return vs;
+  }) : null;
+  const normQ = descQ.toLowerCase().trim().replace(/\s+/g, ' ');
+  const correctedQ = variants ? words.map((w, wi) => variants[wi][1] || w).join(' ') : normQ;
+  const alias = ALIASES[normQ] || (correctedQ !== normQ ? ALIASES[correctedQ] : null);
   if (alias) {
     // Alias word-sets are listed best-first: bucket matches per set to keep
     // that preference, then rank within each bucket.
@@ -530,16 +542,9 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
     };
     for (const wordSet of alias) { for (const i of run(wordSet.map((w) => [w]))) put(i); }
     for (const i of strict) put(i);
-    return { out: buckets.flatMap((b, si) => rank(b, alias[si])).concat(rank(rest)), fuzzy: false };
+    return { out: buckets.flatMap((b, si) => rank(b, alias[si])).concat(rank(rest)), fuzzy: !ALIASES[normQ] && correctedQ !== normQ };
   }
-  if (strict.length >= 5 || !words.length) return { out: rank(strict), fuzzy: false };
-  const longWords = words.filter((w) => w.length >= 5);
-  if (longWords.length > 3 || longWords.length !== words.length) return { out: rank(strict), fuzzy: false };
-  const variants = words.map((w) => {
-    const vs = [w];
-    for (const v of db.vocab) { if (Math.abs(v.length - w.length) <= 1 && v[0] === w[0] && lev1(w, v)) vs.push(v); if (vs.length > 12) break; }
-    return vs;
-  });
+  if (strict.length >= 5 || !words.length || !variants) return { out: rank(strict), fuzzy: false };
   const fz = run(variants);
   return fz.length > strict.length ? { out: rank(fz), fuzzy: true } : { out: rank(strict), fuzzy: false };
 }
