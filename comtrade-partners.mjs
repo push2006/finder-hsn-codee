@@ -116,7 +116,7 @@ async function bakeTrend(year, log) {
   const years = [];
   for (let y = year - 4; y <= year; y++) years.push(y);
   let st = fs.existsSync(TSTATE) ? JSON.parse(fs.readFileSync(TSTATE, 'utf8')) : null;
-  if (st && st.years && st.years[0] === years[0] && st.years[4] === years[4] && Object.keys(st.data || {}).length > 3000) {
+  if (st && st.v === 2 && st.years && st.years[0] === years[0] && st.years[4] === years[4] && Object.keys(st.data || {}).length > 3000) {
     return { trend: 'cached', codes: Object.keys(st.data).length, years: st.years };
   }
   const perYear = {};
@@ -125,7 +125,7 @@ async function bakeTrend(year, log) {
     for (const flow of ['M', 'X']) {
       const url = `https://comtradeapi.un.org/data/v1/get/C/A/HS?reporterCode=699&period=${y}&partnerCode=0&partner2Code=0&flowCode=${flow}&cmdCode=AG6&customsCode=C00&motCode=0`;
       const d = await fetchJson(url, true);
-      for (const r of d.data || []) if (r.primaryValue > 0) perYear[y][flow.toLowerCase()][r.cmdCode] = Math.round(r.primaryValue);
+      for (const r of d.data || []) if (r.primaryValue > 0) perYear[y][flow.toLowerCase()][r.cmdCode] = [Math.round(r.primaryValue), Math.round(r.netWgt || 0)];
       await new Promise((r) => setTimeout(r, 450));
     }
     log('trend year', y, 'pulled');
@@ -133,29 +133,33 @@ async function bakeTrend(year, log) {
   const data = {};
   for (const y of years) {
     for (const c of Object.keys(perYear[y].m)) {
-      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0];
-      data[c][y][0] = perYear[y].m[c];
+      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0, 0, 0];
+      data[c][y][0] = perYear[y].m[c][0];
+      data[c][y][2] = perYear[y].m[c][1];
     }
     for (const c of Object.keys(perYear[y].x)) {
-      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0];
-      data[c][y][1] = perYear[y].x[c];
+      (data[c] = data[c] || {})[y] = data[c][y] || [0, 0, 0, 0];
+      data[c][y][1] = perYear[y].x[c][0];
+      data[c][y][3] = perYear[y].x[c][1];
     }
   }
   fs.mkdirSync('state', { recursive: true });
-  fs.writeFileSync(TSTATE, JSON.stringify({ years, data }) + '\n');
+  fs.writeFileSync(TSTATE, JSON.stringify({ v: 2, years, data }) + '\n');
   let out = `// India merchandise trade by 6-digit HS code, calendar years ${years[0]}-${years[4]}.
 ` +
     `// Source: UN Comtrade API (comtradeapi.un.org), reporter 699 (India), partner World,
 ` +
-    `// flows M (imports, CIF) and X (exports), USD. Row: [year, imports, exports].
+    `// flows M (imports, CIF) and X (exports), USD; net weight in kg (0 = not reported).
+` +
+    `// Row: [year, importsUSD, exportsUSD, importsKg, exportsKg].
 ` +
     `// Baked ${new Date().toISOString().slice(0, 10)}.
 ` +
     `export const TRADE_TREND_YEARS = [${years.join(', ')}];
 ` +
-    `export const TRADE_TREND: Record<string, [number, number][]> = {\n`;
+    `export const TRADE_TREND: Record<string, [number, number, number, number][]> = {\n`;
   for (const c of Object.keys(data).sort()) {
-    out += `  '${c}': [${years.map((y) => `[${y}, ${(data[c][y] || [0, 0])[0]}, ${(data[c][y] || [0, 0])[1]}]`).join(', ')}],\n`;
+    out += `  '${c}': [${years.map((y) => { const a = data[c][y] || [0, 0, 0, 0]; return `[${y}, ${a[0]}, ${a[1]}, ${a[2]}, ${a[3]}]`; }).join(', ')}],\n`;
   }
   fs.writeFileSync(TOUT, out + '};\n');
   return { trend: 'baked', codes: Object.keys(data).length, years };

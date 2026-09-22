@@ -868,6 +868,28 @@ function fetchCurrency(sys, onDone) {
     .catch(() => { V.ccy[sys] = 'err'; onDone(); });
 }
 
+// Year-by-year imports/exports bar chart for the India trade trend (inline SVG, no libraries).
+function trendChart(tr) {
+  const yrs = tr.filter((r) => r[1] || r[2]);
+  if (yrs.length < 2) return '';
+  const max = Math.max.apply(null, yrs.map((r) => Math.max(r[1], r[2])).concat([1]));
+  const w = 660, h = 190, x0 = 46, y0 = h - 26, bw = 26, bgap = 5;
+  const groupW = Math.min(bw * 2 + bgap + 36, (w - x0) / yrs.length);
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" role="img">';
+  svg += '<line x1="' + (x0 - 8) + '" y1="' + y0 + '" x2="' + w + '" y2="' + y0 + '" stroke="#ccc" stroke-width="1"/>';
+  yrs.forEach((r, i) => {
+    const gx = x0 + Math.round(i * groupW);
+    const ih = Math.round((y0 - 24) * r[1] / max);
+    const xh = Math.round((y0 - 24) * r[2] / max);
+    svg += '<rect x="' + gx + '" y="' + (y0 - ih) + '" width="' + bw + '" height="' + Math.max(1, ih) + '" rx="2" fill="#4a5a8a"><title>' + r[0] + ' imports ' + esc(fmtUsd(r[1])) + '</title></rect>' +
+      '<rect x="' + (gx + bw + bgap) + '" y="' + (y0 - xh) + '" width="' + bw + '" height="' + Math.max(1, xh) + '" rx="2" fill="#8a7b5c"><title>' + r[0] + ' exports ' + esc(fmtUsd(r[2])) + '</title></rect>' +
+      '<text x="' + (gx + bw) + '" y="' + (h - 9) + '" font-size="11" text-anchor="middle" fill="#666" font-family="-apple-system,Arial,sans-serif">' + r[0] + '</text>';
+  });
+  svg += '<text x="' + (x0 - 8) + '" y="14" font-size="11" fill="#4a5a8a" font-family="-apple-system,Arial,sans-serif">&#9632; imports</text>' +
+    '<text x="' + (x0 + 62) + '" y="14" font-size="11" fill="#8a7b5c" font-family="-apple-system,Arial,sans-serif">&#9632; exports</text>';
+  return '<div class="tpl-chart">' + svg + '</svg></div>';
+}
+
 function tradeCardHtml(chapter, code) {
   const t = TRADE_CH[chapter];
   const c6 = code ? code.slice(0, 6) : '';
@@ -881,11 +903,12 @@ function tradeCardHtml(chapter, code) {
     (tp && tp.m.length ? '<p>Top import origins: ' + tp.m.map((p) => esc(p[0]) + ' <strong>' + fmtUsd(p[1]) + '</strong>').join(', ') + '</p>' : '') +
     (tp && (tp.xq || tp.xn) ? '<p>Export volume: ' + (tp.xq ? fmtQty(tp.xq[0], tp.xq[1]) : '') + (tp.xq && tp.xn ? ' - ' : '') + (tp.xn ? 'net weight ' + fmtQty(tp.xn[0], 'kg') + (tp.xn[1] ? ' (estimated)' : '') : '') + '</p>' : '') +
     (() => { const tr = c6 ? TRADE_TREND[c6] : null; if (!tr) return '';
-      const yrs = tr.filter((r) => r[1] || r[2]); if (yrs.length < 2) return '';
+      const yrs = tr.filter((r) => r[1] || r[2]); if (!yrs.length) return '';
       const first = yrs[0], last = yrs[yrs.length - 1];
       const grow = (a, b) => { if (!(a > 0 && b > 0)) return ''; const r = b / a, p = Math.round((r - 1) * 100); const t = r >= 1.05 ? 'up ' + r.toFixed(1).replace(/\.0$/, '') + 'x' : p === 0 ? 'roughly flat' : (p > 0 ? 'up ' + p : 'down ' + (-p)) + '%'; return ' (' + t + ')'; };
-      return '<p>Trend ' + first[0] + ' to ' + last[0] + ': imports ' + fmtUsd(first[1]) + ' to ' + fmtUsd(last[1]) + grow(first[1], last[1]) + ' - exports ' + fmtUsd(first[2]) + ' to ' + fmtUsd(last[2]) + grow(first[2], last[2]) + '</p>'; })() +
-    '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners and volumes where baked. Baked into the dataset, not fetched live.</p></div>';
+      const kg = (last[3] || last[4]) ? ' Volume in ' + last[0] + ': net weight ' + fmtQty(last[3], 'kg') + ' in, ' + fmtQty(last[4], 'kg') + ' out.' : '';
+      return trendChart(tr) + '<p>Trend ' + first[0] + ' to ' + last[0] + ': imports ' + fmtUsd(first[1]) + ' to ' + fmtUsd(last[1]) + grow(first[1], last[1]) + ' - exports ' + fmtUsd(first[2]) + ' to ' + fmtUsd(last[2]) + grow(first[2], last[2]) + '.' + kg + '</p>'; })() +
+    '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners, volumes and net weight where reported. Baked into the dataset, not fetched live.</p></div>';
 }
 
 
@@ -931,7 +954,7 @@ function comtradeFacts(e) {
   const tr = TRADE_TREND[c6];
   if (tr) {
     const yrs = tr.filter((r) => r[1] || r[2]);
-    if (yrs.length) f += 'India trade trend, USD (year: imports / exports): ' + yrs.map((r) => r[0] + ': ' + fmtUsd(r[1]) + ' / ' + fmtUsd(r[2])).join(', ') + '. ';
+    if (yrs.length) f += 'India trade trend, USD (year: imports / exports, then net kg in / out where reported): ' + yrs.map((r) => r[0] + ': ' + fmtUsd(r[1]) + ' / ' + fmtUsd(r[2]) + ((r[3] || r[4]) ? ' (' + fmtQty(r[3], 'kg') + ' / ' + fmtQty(r[4], 'kg') + ')' : '')).join(', ') + '. ';
   }
   return f + 'Use these exact figures and countries wherever trade values, volumes, trends or top trading partners are discussed; never contradict them or invent different ones.\n';
 }
@@ -1155,9 +1178,9 @@ function buildTemplateReport(db, idx, narrative, opts) {
       const yrs = tr.filter((r) => r[1] || r[2]); if (!yrs.length) return '';
       const first = yrs[0], last = yrs[yrs.length - 1];
       const grow = (a, b) => { if (!(a > 0 && b > 0)) return 'n/a'; const r = b / a, p = Math.round((r - 1) * 100); return r >= 1.05 ? 'up ' + r.toFixed(1).replace(/\.0$/, '') + 'x' : p === 0 ? 'roughly flat' : (p > 0 ? 'up ' + p : 'down ' + (-p)) + '%'; };
-      const rows = yrs.map((r) => [String(r[0]), 'imports ' + escA(fmtUsd(r[1])) + ' - exports ' + escA(fmtUsd(r[2]))]);
+      const rows = yrs.map((r) => [String(r[0]), 'imports ' + escA(fmtUsd(r[1])) + (r[3] ? ' (' + escA(fmtQty(r[3], 'kg')) + ')' : '') + ' - exports ' + escA(fmtUsd(r[2])) + (r[4] ? ' (' + escA(fmtQty(r[4], 'kg')) + ')' : '')]);
       rows.push(['Change ' + first[0] + ' to ' + last[0], 'imports ' + grow(first[1], last[1]) + ' - exports ' + grow(first[2], last[2])]);
-      return '<h3>India trade trend, HS ' + escA(e[1].slice(0, 6)) + ', ' + TRADE_TREND_YEARS[0] + '-' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1] + ' ' + tplTag('fact') + '</h3>' + factTable(rows); })() +
+      return '<h3>India trade trend, HS ' + escA(e[1].slice(0, 6)) + ', ' + TRADE_TREND_YEARS[0] + '-' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1] + ' ' + tplTag('fact') + '</h3>' + trendChart(tr) + factTable(rows); })() +
     (trade ? '<h3>India trade in chapter ' + escA(e[4]) + ', calendar ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports (CIF, USD)', escA(fmtUsd(trade[0]))], ['Exports (USD)', escA(fmtUsd(trade[1]))], ['Balance', trade[1] > trade[0] ? 'India is a net exporter in this chapter.' : (trade[0] > trade[1] * 3 ? 'India relies heavily on imports in this chapter.' : 'Mixed trade balance.')]]) : '') +
     tplTradeChart(trade6, trade, e[1].slice(0, 6)) +
     tplDutyChart(rated) +
