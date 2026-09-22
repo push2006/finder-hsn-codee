@@ -1695,8 +1695,8 @@ function paintSearch() {
     '<div class="sfield smart-btn"><button class="file-button is-compact" id="cls-go"' + (V.clsBusy || !V.q.trim() ? ' disabled' : '') + '>' + (V.clsBusy ? 'Thinking...' : 'Suggest best codes') + '</button></div>' +
     '</div>' +
     '<div class="chip-row no-print" id="sys-chips">' + [{ s: -1, t: 'All' }].concat(SYS.map((x, si) => ({ s: si, t: x.tag }))).map((c) => '<button class="chip' + (V.sysFilter === c.s ? ' on' : '') + '" data-sysf="' + c.s + '">' + c.t + '</button>').join('') + '</div></div>' +
-    '<div id="cls-slot"></div>' +
     '<div id="res-slot"></div>' +
+    '<div id="cls-slot"></div>' +
     '<div id="idle-slot">' + (idle ? searchIdleHtml() : '') + '</div>' +
     '</div>';
   const qm = el('q-main');
@@ -1811,7 +1811,7 @@ function footerHtml() {
 }
 
 export function boot(rootEl) {
-  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading 265,169 codes...</p></div></div>';
+  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading 310,632 codes...</p></div></div>';
   decodeData().then((entries) => {
     S.db = loadDb(entries);
     S.changes = checkChanges(S.db, Array.from(new Set(loadKeys('hsn-favs').concat(loadKeys('hsn-shortlist')))));
