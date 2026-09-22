@@ -848,6 +848,68 @@ function linkPanelHtml(e, idx) {
     '<p class="muted">The same product across every system in this finder. Tap any code to open it.</p>' + body + '</div>';
 }
 
+// Booming products - India trade momentum leaderboard (UN Comtrade 2021-2025, baked).
+function boomData() {
+  if (V.boomData) return V.boomData;
+  const out = { X: [], M: [] };
+  for (const c6 in TRADE_TREND) {
+    const tr = TRADE_TREND[c6];
+    let r24 = null, r25 = null;
+    for (const r of tr) { if (r[0] === 2024) r24 = r; else if (r[0] === 2025) r25 = r; }
+    if (!r24 || !r25) continue;
+    const flows = [['M', 1], ['X', 2]];
+    for (const fl of flows) {
+      const base = r24[fl[1]], cur = r25[fl[1]];
+      if (cur < 25000000 || base < 5000000) continue;
+      const pct = ((cur - base) / base) * 100;
+      if (pct <= 15) continue;
+      out[fl[0]].push([c6, base, cur, cur - base, pct]);
+    }
+  }
+  out.X.sort((a, b) => b[4] - a[4]);
+  out.M.sort((a, b) => b[4] - a[4]);
+  V.boomData = out;
+  return out;
+}
+function boomPanelHtml() {
+  const d = boomData();
+  const flow = V.boomFlow || 'X';
+  const ch = V.boomCh || '';
+  const all = d[flow];
+  const rows = all.filter((r) => !ch || r[0].slice(0, 2) === ch).slice(0, 60);
+  const chapters = [];
+  for (let i = 1; i <= 99; i++) {
+    const c2 = String(i).padStart(2, '0');
+    if (all.some((r) => r[0].slice(0, 2) === c2)) chapters.push(c2);
+  }
+  return '<div class="chip-sec boom-panel"><h3>Booming products - India ' + (flow === 'X' ? 'export' : 'import') + ' momentum, 2024 to 2025</h3>' +
+    '<div class="chip-row no-print">' +
+    '<button class="chip' + (flow === 'X' ? ' on' : '') + '" data-boomf="X">Exports</button>' +
+    '<button class="chip' + (flow === 'M' ? ' on' : '') + '" data-boomf="M">Imports</button>' +
+    '<select id="boom-ch" class="boom-sel"><option value="">All chapters</option>' + chapters.map((c) => '<option value="' + c + '"' + (ch === c ? ' selected' : '') + '>Chapter ' + c + '</option>').join('') + '</select></div>' +
+    '<table class="boom-table"><thead><tr><th>#</th><th>HS 6-digit</th><th>Product</th><th>2024</th><th>2025</th><th>Added</th><th>Growth</th></tr></thead><tbody>' +
+    rows.map((r, i) => {
+      const idx = S.db.keyToIdx.get('0:' + r[0]);
+      const desc = idx !== undefined ? S.db.entries[idx][2] : '';
+      return '<tr class="boom-row"' + (idx !== undefined ? ' data-open="' + idx + '"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r[0]) + '</td><td>' + esc(pretty(desc)) + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + esc(fmtUsd(r[2])) + '</td><td>+' + esc(fmtUsd(r[3])) + '</td><td><strong>+' + r[4].toFixed(0) + '%</strong></td></tr>';
+    }).join('') +
+    '</tbody></table>' +
+    (rows.length === 0 ? '<p class="muted">No lines above the floors in this selection.</p>' : '') +
+    '<p class="muted">UN Comtrade, India reporter, calendar years (baked 22 Sep 2026). Ranked by 2024-to-2025 growth; floors: at least $25M traded in 2025 on a $5M base in 2024, minimum +15%. Tap a row for the full code detail.</p></div>';
+}
+function boomBadgeHtml(e) {
+  const tr = TRADE_TREND[e[1].slice(0, 6)];
+  if (!tr) return '';
+  let r24 = null, r25 = null;
+  for (const r of tr) { if (r[0] === 2024) r24 = r; else if (r[0] === 2025) r25 = r; }
+  if (!r24 || !r25) return '';
+  const notes = [];
+  if (r25[2] >= 25000000 && r24[2] >= 5000000) { const pc = ((r25[2] - r24[2]) / r24[2]) * 100; if (pc >= 50) notes.push('exports +' + pc.toFixed(0) + '% in 2025'); }
+  if (r25[1] >= 25000000 && r24[1] >= 5000000) { const pc = ((r25[1] - r24[1]) / r24[1]) * 100; if (pc >= 50) notes.push('imports +' + pc.toFixed(0) + '% in 2025'); }
+  if (!notes.length) return '';
+  return '<div class="alert-banner boom-badge no-print"><strong>Booming product</strong> - India ' + esc(notes.join(' and ')) + ' (UN Comtrade, min $25M traded).</div>';
+}
+
 function dutyCompareHtml(e) {
   const groups = linkage(S.db, e);
   const rows = groups.map((g) => {
@@ -1769,6 +1831,7 @@ function detailHtml(idx) {
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
   s += addHtml(e[1], e[2]);
+  s += boomBadgeHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
   if (path.length > 1) {
@@ -2167,6 +2230,8 @@ function searchIdleHtml() {
   s += '<div class="about-box">' +
     '<p>One smart box does both jobs: type a product name and the list filters live, type digits and it becomes a code search, or tap Suggest best codes for an AI pick of the most likely code. Tap a result for the full detail page: what the code covers, how it links worldwide (international 6-digit to national to domestic tariff lines), and a PDF download.</p>' +
     '<p><button class="file-button is-compact" data-variant="secondary" id="browse-toggle">' + (V.browse ? 'Hide chapter browser' : 'Browse all 98 chapters') + '</button></p>' +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="boom-toggle">' + (V.boom ? 'Hide booming products' : 'Booming products 2025 - India\'s fastest-growing trade lines') + '</button></p>' +
+    (V.boom ? boomPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
     '<h3>What is inside</h3><ul>' + INSIDE_LIST.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
     '<h3>Sources</h3><ul>' + SYS.map((sy) => '<li><strong>' + sy.tag + '</strong>: ' + esc(sy.src) + '. <a href="' + sy.url + '" target="_blank" rel="noreferrer">Reference</a></li>').join('') + '</ul>' +
@@ -2239,6 +2304,13 @@ function paintIdle() {
   if (con) con.addEventListener('click', () => { S.clientMode = true; paintSearch(); });
   const bt = el('browse-toggle');
   if (bt) bt.addEventListener('click', () => { V.browse = !V.browse; paintIdle(); });
+  const bm = el('boom-toggle');
+  if (bm) bm.addEventListener('click', () => { V.boom = !V.boom; paintIdle(); });
+  Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
+    b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
+  });
+  const bch = el('boom-ch');
+  if (bch) bch.addEventListener('change', () => { V.boomCh = bch.value; paintIdle(); });
 }
 function paintResults() {
   const slot = el('res-slot');
@@ -2305,7 +2377,7 @@ function render() {
 function headerHtml() {
   return '<div class="app-head no-print"><h1 class="app-title">Worldwide HSN Code Finder</h1>' +
     '<p class="app-fact">' + SYS.length + ' official systems - ' + S.db.entries.length.toLocaleString('en-US') + ' codes</p>' +
-    '<p class="app-intro">Search WCO, India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa and Peru. Every code links international roots to national and statistical lines, with detail and PDF.</p></div>';
+    '<p class="app-intro">Search WCO, India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru, China and the UAE. Every code links international roots to national and statistical lines, with detail and PDF.</p></div>';
 }
 function footerHtml() {
   return '<footer class="app-foot no-print">Copyright (c) 2026 ' + esc(OWNER) + '. All rights reserved.<br>Tariff descriptions and duty rates compiled from the official public government and WCO sources credited above; verify against the official source before filing.</footer>';

@@ -316,3 +316,15 @@ a { color: var(--ds-teal); }
 .sanc-green { background: #eaf6ec; border: 1px solid #b9dcc0; }
 .ports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin: 4px 0 10px; }
 .port-chip { border: 1px solid var(--line, #d8d2c8); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; }
+
+.sys-19 { background: #555f4a; }
+.sys-20 { background: #a83232; }
+.sys-21 { background: #1e7a6e; }
+.boom-panel { margin: 12px 0; }
+.boom-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.boom-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ds-ink-2); padding: 6px 8px; border-bottom: 2px solid var(--ds-line, #d8d2c8); }
+.boom-table td { padding: 6px 8px; border-bottom: 1px solid var(--ds-line, #e8e2d8); }
+.boom-row { cursor: pointer; }
+.boom-row:hover td { background: rgba(0,0,0,.04); }
+.boom-sel { font: inherit; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--ds-line, #d8d2c8); background: #fff; }
+.boom-badge { border-left: 4px solid #1e7a4f; }
