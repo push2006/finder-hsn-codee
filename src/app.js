@@ -33,15 +33,10 @@ const SYS = [
 
 const TRADE_YEAR = 2025;
 const DATA_BUILD = '2026-09-22-gen10';
-// Current free-tier Gemini models, newest stable first (verified against
-// https://ai.google.dev/gemini-api/docs/models on 22 Sep 2026). If Google retires
-// one, geminiPost falls through to the next instead of failing the report.
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+// Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
 const geminiModelLabel = () => geminiModelUsed || GEMINI_MODELS[0];
-// Groq free-tier chat models, biggest first (https://console.groq.com/docs/models).
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 let groqModelUsed = '';
 // Built-in AI for everyone: point AI_PROXY_URL at your free Cloudflare Worker
 // (setup steps in worker-setup.txt). The worker holds the API keys server-side,
@@ -50,12 +45,45 @@ let groqModelUsed = '';
 // (Google Search capable). A key pasted in AI settings always overrides the proxy.
 const AI_PROXY_URL = '';
 const AI_PROXY_TOKEN = ''; // set only if you also set APP_SECRET on the worker
+// Built-in shared keys (optional second choice): paste your own free keys here
+// to give every visitor AI without a worker. WARNING: anyone can read these in
+// the page source and bots scan public repos - a shared key can be stolen and
+// its daily quota burned. The worker option above keeps keys hidden. Comma-
+// separate several keys to rotate when one hits its daily limit.
+const BUILTIN_GEMINI_KEYS = 'AIzaSyAeLPnOoR_M_jTJnj9dYGVOPyUJMJ91dDw';
+const BUILTIN_GROQ_KEYS = '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';
+
+// ==== AI model swap points: change a model by editing one line ====
+const GEMINI_MODEL = 'gemini-3.8-flash'; // report writing; free tier confirmed 22 Sep 2026. Google Search grounding is NOT in the free tier - the report call retries ungrounded automatically.
+const GROQ_MODEL = 'openai/gpt-oss-120b'; // instant best-code picks
+const GROQ_MODEL_FALLBACK = 'openai/gpt-oss-20b'; // used if the primary is busy or retired
+const GROQ_MODELS = [GROQ_MODEL, GROQ_MODEL_FALLBACK];
+// Gemini chain: tried in order when a model is retired, busy or quota-maxed.
+const GEMINI_MODELS = [GEMINI_MODEL, 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+const builtinPools = { gemini: { off: 0 }, groq: { off: 0 } };
+const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : BUILTIN_GEMINI_KEYS).split(',').map((k) => k.trim()).filter(Boolean);
+const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEYS.trim() || BUILTIN_GROQ_KEYS.trim());
+let aiSharedKey = false;
 let aiProviderUsed = 'gemini';
-const geminiAiLabel = () => aiProviderUsed === 'groq'
+const geminiAiLabel = () => (aiProviderUsed === 'groq'
   ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', model knowledge only - no live search'
-  : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search');
+  : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
+  if (Array.isArray(apiKey)) { // built-in shared pool: rotate on dead/maxed keys
+    const pool = builtinPools.gemini;
+    let lastErr = null;
+    for (let k = 0; k < apiKey.length; k++) {
+      const ki = (pool.off + k) % apiKey.length;
+      try { const r = await geminiPost(apiKey[ki], body); pool.off = ki; return r; }
+      catch (err) {
+        lastErr = err;
+        if (/not accepted|refused|limit reached/i.test(err.message || '')) continue;
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
   let quotaHit = false, transientHit = false, netFail = false;
   for (const m of GEMINI_MODELS) {
     let res, data;
@@ -101,6 +129,20 @@ async function geminiText(apiKey, prompt, opts, grounded) {
   return ((cand && cand.content && cand.content.parts) || []).map((pt) => pt.text || '').join('\n');
 }
 async function groqPost(apiKey, prompt, opts) {
+  if (Array.isArray(apiKey)) { // built-in shared pool: rotate on dead/maxed keys
+    const pool = builtinPools.groq;
+    let lastErr = null;
+    for (let k = 0; k < apiKey.length; k++) {
+      const ki = (pool.off + k) % apiKey.length;
+      try { const r = await groqPost(apiKey[ki], prompt, opts); pool.off = ki; return r; }
+      catch (err) {
+        lastErr = err;
+        if (/not accepted|limit reached/i.test(err.message || '')) continue;
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
   const headers = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = 'Bearer ' + apiKey.trim();
   else if (AI_PROXY_TOKEN) headers['x-app-token'] = AI_PROXY_TOKEN;
@@ -127,19 +169,29 @@ async function groqPost(apiKey, prompt, opts) {
   throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
 }
 async function aiPickText(prompt, opts) {
-  if (V.apiKey) { aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false); }
+  if (V.apiKey) { aiSharedKey = false; aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false); }
   if (AI_PROXY_URL) {
+    aiSharedKey = false;
     try { aiProviderUsed = 'groq'; return await groqPost('', prompt, opts); }
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'gemini'; return geminiText('', prompt, opts, false); }
   }
+  const gk = builtinKeys('groq');
+  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; return groqPost(gk, prompt, opts); }
+  const mk = builtinKeys('gemini');
+  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; return geminiText(mk, prompt, opts, false); }
   throw new Error('no-ai');
 }
 async function aiReportText(prompt, grounded, opts) {
-  if (V.apiKey) { aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, grounded); }
+  if (V.apiKey) { aiSharedKey = false; aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, grounded); }
   if (AI_PROXY_URL) {
+    aiSharedKey = false;
     try { aiProviderUsed = 'gemini'; return await geminiText('', prompt, opts, grounded); }
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
   }
+  const mk = builtinKeys('gemini');
+  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; return geminiText(mk, prompt, opts, grounded); }
+  const gk = builtinKeys('groq');
+  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; return groqPost(gk, prompt, opts); }
   throw new Error('no-ai');
 }
 
@@ -677,7 +729,8 @@ async function tplNarrative(db, idx, apiKey) {
   const prompt = 'Write the narrative sections for a professional product research report on this exact tariff product.\n' +
     'Product: ' + pretty(e[2]) + '\n' +
     'Classification: ' + SYS[e[0]].name + ' code ' + fmtCode(e[0], e[1]) + ', chapter ' + e[4] + ' - ' + (db.chapterTitle.get(e[4]) || '') + '\n' +
-    'Use Google Search for current facts. Rules: plain simple English, short sentences, readable on a phone. Never invent a number, price, company role, regulation or statistic; where product-specific data is unavailable, say so plainly and give clearly labelled general chapter-level context instead. Do not use markdown, headings, tables or bullet markers - plain paragraphs only.\n' +
+    'Use Google Search for current facts. Rules: plain simple English, short sentences, readable on a phone. Never invent a number, price, company role, regulation or statistic; rough ranges and qualitative judgements are fine when labelled approximate. Where product-specific data is unavailable, say so plainly and give clearly labelled general chapter-level context instead. Be specific to THIS product: name real grades, hubs, ports, companies and rules; no filler that could fit any product. Do not use markdown or headings.\n' +
+    'Tables: inside sections that compare or list facts, add ONE compact pipe table within that section\'s string, on its own lines: a header line like \'| Column | Column |\' then 3 to 6 row lines, cells separated by \'|\', 2 to 4 columns, no separator dashes line. Good spots: sec03 (exporter/importer countries with rough shares), sec04 (company | country | role), sec07 (industry | what it uses this product for), sec08 (hazard or rule | requirement), sec12 (cost item | typical range | note), sec13 (advantage | why it matters), sec16 (option | when to use it | note).\n' +
     'Return ONLY a JSON object, no code fences, with exactly these keys. Every key except sec15 maps to one string of 2 to 4 short paragraphs (paragraphs separated by a blank line). sec15 maps to one string of newline-separated checklist lines, each line formatted as "Document name - issuing authority - why it is needed for this product":\n' +
     '{"sec01a":"product features and trade-offs - be concrete: physical forms, grades, quality markers, substitutes","sec02":"manufacturing and distribution - typical production process, input materials, manufacturing hubs, distribution channels","sec03":"global market, pricing and shortages - market size direction, price drivers, major exporting and importing countries, current shortages or gluts","sec04":"notable verified producer and buyer companies by country, only with evidence - if none verified, say data unavailable","sec05":"India market and realistic opportunities - demand pockets, buyer types, realistic entry routes for an Indian trader","sec06":"geopolitics and supply-chain risks - concentration risks, trade tensions, logistics chokepoints affecting this product","sec07":"technical uses by industry - which industries consume it and for what","sec08":"safety, storage and regulation - handling, shelf life, transport hazards, product-specific rules","sec09":"overall summary","sec10":"impact of trade in this product","sec11":"geopolitics deep view","sec12":"financial considerations - working capital, payment terms, price volatility, margin structure","sec13":"competitive advantages","sec14":"what is changing and the outlook","sec15":"export-import document checklist for trading this product to or from India","sec16":"logistics, packing and Incoterms guidance - typical packing, container or shipping mode, insurance notes, which Incoterms suit this trade and why","sec17":"recent policy changes and news from the last 12 months affecting this product - tariff changes, bans, new rules, with dates"}';
   // Grounded (Google Search) first; free-tier keys often have no grounding quota (429),
@@ -702,11 +755,43 @@ function tplTag(kind) {
   if (kind === 'ai') return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - AI-assisted (' + geminiAiLabel() + ') - verify independently</span>';
   return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - general chapter-level context</span>';
 }
+function tplTableFromLines(lines) {
+  const rows = lines.map((l) => l.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim()))
+    .filter((cells) => !cells.every((c) => /^[\s:\-]*$/.test(c)));
+  if (!rows.length) return '';
+  const head = rows[0], body = rows.slice(1);
+  return '<table class="tpl-table"><thead><tr>' + head.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead>' +
+    (body.length ? '<tbody>' + body.map((r) => '<tr>' + r.map((c) => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody>' : '') + '</table>';
+}
 function tplParas(s) {
-  return String(s || '').split(/\n\s*\n/).map((pt) => pt.trim()).filter(Boolean).map((pt) => '<p>' + esc(pt) + '</p>').join('');
+  // AI sections may carry compact pipe tables (header line then rows, cells split by '|').
+  // Consecutive pipe lines become a real table; everything else stays paragraphs.
+  const out = [];
+  let para = [], tbl = [];
+  const flushP = () => { if (para.length) { out.push('<p>' + esc(para.join(' ')) + '</p>'); para = []; } };
+  const flushT = () => { if (tbl.length) { out.push(tplTableFromLines(tbl)); tbl = []; } };
+  for (const raw of String(s || '').split(/\n+/)) {
+    const line = raw.trim();
+    if (!line) { flushT(); flushP(); continue; }
+    if (line.charAt(0) === '|') { flushP(); tbl.push(line); }
+    else { flushT(); para.push(line); }
+  }
+  flushT(); flushP();
+  return out.join('');
 }
 function tplNarr(narr, key) {
   return narr && typeof narr[key] === 'string' && narr[key].trim() ? tplTag('ai') + tplParas(narr[key]) : '';
+}
+function tplDocTable(s) {
+  // "Document - issuing authority - why needed" lines become a 3-column table; fall back to the bullet list.
+  const lines = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
+  const rows = lines.map((l) => l.replace(/^[-*•\d.)\s]+/, '')).map((l) => {
+    const parts = l.split(/\s+-\s+/);
+    return parts.length >= 3 ? [parts[0], parts[1], parts.slice(2).join(' - ')] : null;
+  }).filter(Boolean);
+  if (rows.length < 2) return tplCheck(s);
+  return '<table class="tpl-table"><thead><tr><th>Document</th><th>Issuing authority</th><th>Why it is needed</th></tr></thead><tbody>' +
+    rows.map((r) => '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') + '</tbody></table>';
 }
 function tplCheck(s) {
   const items = String(s || '').split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3 && /[a-zA-Z]/.test(l));
@@ -891,7 +976,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
 
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">15</span> Documents and compliance checklist</h2>' +
     '<p class="muted">Paperwork typically needed to move this product to or from India. AI-compiled from current official guidance - confirm each item with your CHA or DGFT before shipping.</p>' +
-    (has('sec15') ? tplTag('ai') + tplCheck(narrative.sec15) : tplFallback('document checklist', chTitle)) +
+    (has('sec15') ? tplTag('ai') + tplDocTable(narrative.sec15) : tplFallback('document checklist', chTitle)) +
     tplSrc([{ t: has('sec15') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - confirm against DGFT/CBIC before shipping' : 'No section-specific source - general context' }, { t: 'DGFT', u: 'https://www.dgft.gov.in/' }, { t: 'CBIC', u: 'https://www.cbic.gov.in/' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">16</span> Logistics and Incoterms</h2>' +
     (has('sec16') ? tplNarr(narrative, 'sec16') : tplFallback('logistics and Incoterms', chTitle)) +
@@ -976,7 +1061,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
 
 async function openTemplateReport(db, idx) {
   let narrative = null, aiError = '';
-  if (V.apiKey || AI_PROXY_URL) {
+  if (aiAvailable()) {
     try { narrative = await tplNarrative(db, idx, V.apiKey); } catch (err) { aiError = err.message || 'AI call failed'; }
   }
   const html = buildTemplateReport(db, idx, narrative, { aiError });
@@ -1035,7 +1120,7 @@ function detailHtml(idx) {
   if (kids.length > 120) s += '<p class="muted">Showing 120 of ' + kids.length + ' sub-lines. Use the code search with prefix ' + esc(e[1]) + ' to see more.</p>';
   s += '</div>';
   s += '<div class="detail-sec no-print ai-panel">' +
-    '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. ' + (AI_PROXY_URL ? 'AI is built in for everyone - no key needed.' : 'Needs a free AI key, set up once.') + '</p></div><span class="ai-status ' + ((apiKey || AI_PROXY_URL) ? 'ready' : 'offline') + '">' + ((apiKey || AI_PROXY_URL) ? 'Live ready' : 'Key needed') + '</span></div>' +
+    '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. ' + (AI_PROXY_URL || builtinKeys('gemini').length || builtinKeys('groq').length ? 'AI is built in for everyone - no key needed.' : 'Needs a free AI key, set up once.') + '</p></div><span class="ai-status ' + (aiAvailable() ? 'ready' : 'offline') + '">' + (apiKey || AI_PROXY_URL ? 'Live ready' : aiAvailable() ? 'Shared AI - may hit daily limit' : 'Key needed') + '</span></div>' +
     '<div class="action-row">' +
     '<button class="file-button is-compact" id="d-tpl"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Writing the report with AI...' : 'Full report') + '</button>' +
     '<button class="file-button is-compact" data-variant="secondary" id="ai-settings">' + (V.settingsOpen ? 'Hide AI settings' : apiKey ? 'Change API key' : 'Use your own key') + '</button>' +
@@ -1092,7 +1177,7 @@ function paintDetail() {
   }
   el('d-compare').addEventListener('click', () => { S.cmpA = idx; S.cmpB = null; V.cmpQ = ''; render(); });
   el('d-tpl').addEventListener('click', () => {
-    if (!V.apiKey && !AI_PROXY_URL) {
+    if (!aiAvailable()) {
       V.needKey = true; V.settingsOpen = true; V.briefError = null; paintDetail();
       const k = el('api-key');
       if (k) { try { k.scrollIntoView({ block: 'center' }); } catch { /* ignore */ } try { k.focus(); } catch { /* ignore */ } }
@@ -1214,7 +1299,7 @@ function paintShortlist() {
 function classifyHtml() {
   const apiKey = V.apiKey;
   let s = '';
-  if (!apiKey && !AI_PROXY_URL && !V.clsHits && !V.clsOffline && !V.clsBusy) {
+  if (!aiAvailable() && !V.clsHits && !V.clsOffline && !V.clsBusy) {
     s += '<p class="muted no-print" style="margin:2px 0 6px">Tip: add a free Gemini or Groq key on any detail page and this box also gives AI best-code picks. Without a key it shows closest text matches.</p>';
   }
   if (V.clsErr) s += '<p class="error-note">' + esc(V.clsErr) + '</p>';
@@ -1257,11 +1342,11 @@ async function classifyRun() {
   if (!text || V.clsBusy) return;
   V.clsBusy = true; V.clsErr = null; V.clsHits = null; V.clsOffline = null;
   paintClassify();
-  const hasAi = V.apiKey || AI_PROXY_URL;
+  const hasAi = aiAvailable();
   if (hasAi) {
     try {
       const prompt = 'You are an expert customs tariff classifier using the WCO Harmonized System 2022. A trader describes a product: "' + text.replace(/"/g, "'") + '". Suggest up to 5 most likely 6-digit HS codes (subheading level), best first. Return ONLY a JSON array, no Markdown, no commentary: [{"code":"280421","why":"one short line"}]. Codes must be real HS 2022 subheadings.';
-      let txt = (await aiPickText(prompt, { temperature: 0, maxTokens: 1200 })).trim().replace(/```[a-z]*/gi, '');
+      let txt = (await aiPickText(prompt, { temperature: 0, maxTokens: 4000 }) /* thinking models burn tokens before the JSON; keep headroom */).trim().replace(/```[a-z]*/gi, '');
       const a = txt.indexOf('['); const b = txt.lastIndexOf(']');
       if (a < 0 || b <= a) throw new Error('no JSON');
       const arr = JSON.parse(txt.slice(a, b + 1));
