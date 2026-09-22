@@ -41,10 +41,12 @@ const SYS = [
   { tag: 'ZA', name: 'South Africa Customs Tariff (Schedule 1 Part 1)', src: 'South African Revenue Service (SARS) official Schedule 1 Part 1 (chapters 1-99) of the Customs and Excise Act, tariff dated 28 Aug 2026, general (MFN) rate column; EU/UK, EFTA, SADC, MERCOSUR and AfCFTA preferential columns not baked', url: 'https://www.sars.gov.za/legal-lprim-ce-sch1p1chpt1-to-99-schedule-no-1-part-1-chapters-1-to-99/' },
   { tag: 'PE', name: 'Peru Arancel de Aduanas (NANDINA)', src: 'SUNAT official live tariff tables (NANDINA nomenclature + NANDTASA rates, aduanet servlet, downloaded 22 Sep 2026), ad valorem column; IGV and other internal taxes not baked', url: 'http://www.aduanet.gob.pe/ol-ad-tg/ServletTGConsultaTablas' },
   { tag: 'SAC', name: 'India SAC (GST services master)', src: 'Official HSN/SAC services workbook (Services Accounting Codes), downloaded 22 Sep 2026 from the GST portal HSN/SAC search', url: 'https://services.gst.gov.in/services/searchhsnsac' },
+  { tag: 'CN', name: 'China Customs Import Tariff (MFN base rates)', src: 'RCEP Schedule of Tariff Commitments of China (official treaty text, English), Base Rate column = China MFN rate at RCEP signing (2020), 8-digit national tariff lines on the pre-2022 HS base; subheadings without an HS 2022 WCO description show code-only hierarchy rows', url: 'https://www.mfat.govt.nz/en/trade/free-trade-agreements/free-trade-agreements-in-force/regional-comprehensive-economic-partnership-rcep/' },
+  { tag: 'AE', name: 'UAE Customs Tariff (GCC common external tariff)', src: 'India-UAE CEPA Appendix 2A-A official UAE tariff schedule (English), Base Rate column = GCC common external tariff (most lines 0% or 5%; prohibited and special-goods lines marked). UAE moved to 12-digit display in 2025 (Cabinet Resolution 119/2024) - first 8 digits unchanged', url: 'https://commerce.gov.in/international-trade/trade-agreements/' },
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-22-gen15';
+const DATA_BUILD = '2026-09-23-gen16';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -912,6 +914,8 @@ const PORTAL_LINKS = [
   [{ label: 'Israel Tax Authority', url: 'https://www.gov.il/en/departments/israel_tax_authority/govil-landing-page' }],
   [{ label: 'Mexico LIGIE', url: 'https://www.snice.gob.mx/cs/avi/snice/ligie.info22.html' }],
 ];
+PORTAL_LINKS[20] = [{ label: 'GACC China Customs', url: 'http://english.customs.gov.cn/' }, { label: 'MOFCOM FTA portal', url: 'http://fta.mofcom.gov.cn/' }];
+PORTAL_LINKS[21] = [{ label: 'Dubai Customs', url: 'https://www.dubaicustoms.gov.ae/' }, { label: 'UAE Federal Customs Authority', url: 'https://www.fca.gov.ae/' }];
 function portalRowHtml(sys) {
   const links = PORTAL_LINKS[sys] || [];
   if (!links.length) return '';
@@ -921,6 +925,8 @@ function portalRowHtml(sys) {
 }
 
 const SYS_CCY = [null, 'INR', 'USD', 'EUR', 'GBP', 'KRW', 'CAD', 'JPY', 'AUD', 'BRL', 'TWD', 'NZD', 'NOK', 'SGD', 'ILS', 'MXN'];
+SYS_CCY[20] = 'CNY';
+SYS_CCY[21] = 'AED';
 
 function currencySlotHtml(sys) {
   const ccy = SYS_CCY[sys];
@@ -2306,7 +2312,7 @@ function footerHtml() {
 }
 
 export function boot(rootEl) {
-  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading 310,632 codes...</p></div></div>';
+  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading 340,232 codes...</p></div></div>';
   decodeData().then((entries) => {
     S.db = loadDb(entries);
     S.changes = checkChanges(S.db, Array.from(new Set(loadKeys('hsn-favs').concat(loadKeys('hsn-shortlist')))));
