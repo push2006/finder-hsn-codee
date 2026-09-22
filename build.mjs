@@ -26,6 +26,8 @@ const trade = plain('trademap.ts', 'TRADE_CH');
 const trade6 = plain('tradevalues.ts', 'TRADE6');
 const tradepartners = plain('tradepartners.ts', 'TRADE_PARTNERS')
   .replace('export const TRADE_PARTNERS_YEAR =', 'const TRADE_PARTNERS_YEAR =');
+const tradetrend = plain('tradetrend.ts', 'TRADE_TREND')
+  .replace('export const TRADE_TREND_YEARS =', 'const TRADE_TREND_YEARS =');
 const scomet = plain('scomet.ts', 'SCOMET');
 const alias = plain('aliases.ts', 'ALIASES');
 const sanc = read('sanctions.ts')
@@ -64,6 +66,7 @@ ${gst}
 ${trade}
 ${trade6}
 ${tradepartners}
+${tradetrend}
 ${scomet}
 ${alias}
 ${sanc}

@@ -8,6 +8,7 @@ import { GST_MAP } from './gstmap';
 import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
+import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -15,7 +16,7 @@ import { SANCTIONS, SANCTIONS_META } from './sanctions';
 const OWNER = 'Push';
 const SYS = [
   { tag: 'HS', name: 'WCO HS 2022 (international)', src: 'UN Comtrade extraction of the WCO HS 2022 nomenclature', url: 'https://comtrade.un.org/data/doc/api/' },
-  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored Sep 2025 (GST portal blocks direct download), joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
+  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
   { tag: 'US', name: 'US HTS (Harmonized Tariff Schedule)', src: 'USITC official HTS export, includes general duty rates', url: 'https://hts.usitc.gov/' },
   { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Publications Office of the EU, official CN 2026 dataset', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
   { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Department for Business and Trade official 2026 commodity report', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.200/metadata?format=html' },
@@ -33,10 +34,11 @@ const SYS = [
   { tag: 'HK', name: 'Hong Kong HKHS 2026', src: 'Census and Statistics Department official Hong Kong Harmonized System 2026 CSV via data.gov.hk, bilingual. Hong Kong is a free port - no general import duty (excise applies only to liquor, tobacco, hydrocarbon oil and methyl alcohol), so lines show no duty', url: 'https://data.gov.hk/en-data/dataset/hk-censtatd-tablechart-b2xx0023' },
   { tag: 'ZA', name: 'South Africa Customs Tariff (Schedule 1 Part 1)', src: 'South African Revenue Service (SARS) official Schedule 1 Part 1 (chapters 1-99) of the Customs and Excise Act, tariff dated 28 Aug 2026, general (MFN) rate column; EU/UK, EFTA, SADC, MERCOSUR and AfCFTA preferential columns not baked', url: 'https://www.sars.gov.za/legal-lprim-ce-sch1p1chpt1-to-99-schedule-no-1-part-1-chapters-1-to-99/' },
   { tag: 'PE', name: 'Peru Arancel de Aduanas (NANDINA)', src: 'SUNAT official live tariff tables (NANDINA nomenclature + NANDTASA rates, aduanet servlet, downloaded 22 Sep 2026), ad valorem column; IGV and other internal taxes not baked', url: 'http://www.aduanet.gob.pe/ol-ad-tg/ServletTGConsultaTablas' },
+  { tag: 'SAC', name: 'India SAC (GST services master)', src: 'Official HSN/SAC services workbook (Services Accounting Codes), downloaded 22 Sep 2026 from the GST portal HSN/SAC search', url: 'https://services.gst.gov.in/services/searchhsnsac' },
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-22-gen14';
+const DATA_BUILD = '2026-09-22-gen15';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -447,13 +449,36 @@ function smartSearch(db, q, sysFilter) {
   if (/^\d/.test(t)) {
     const digits = t.replace(/\D/g, '');
     if (!digits) return { out: [], fuzzy: false };
-    const out = [];
-    for (let i = 0; i < db.entries.length; i++) {
-      const e = db.entries[i];
-      if (sysFilter >= 0 && e[0] !== sysFilter) continue;
-      if (e[1].startsWith(digits)) { out.push(i); if (out.length >= 4000) break; }
+    const find = (d) => {
+      const out = [];
+      for (let i = 0; i < db.entries.length; i++) {
+        const e = db.entries[i];
+        if (sysFilter >= 0 && e[0] !== sysFilter) continue;
+        if (e[1].startsWith(d)) { out.push(i); if (out.length >= 4000) break; }
+      }
+      return out;
+    };
+    const out = find(digits);
+    if (out.length) {
+      // A full national code (7+ digits) that exists gets its own line first,
+      // before the 6-digit family group.
+      const exact = digits.length >= 7 ? out.filter((i) => db.entries[i][1] === digits).sort((a, b) => {
+        const pri = (i) => { const s0 = db.entries[i][0]; return s0 === 1 ? 0 : s0 === 0 ? 1 : 2; };
+        return pri(a) - pri(b) || db.entries[a][0] - db.entries[b][0];
+      }) : null;
+      return exact && exact.length ? { out, fuzzy: false, exact } : { out, fuzzy: false };
     }
-    return { out, fuzzy: false };
+    if (digits.length > 6) {
+      const root6 = digits.slice(0, 6);
+      const fb = find(root6);
+      if (fb.length) return { out: fb, fuzzy: false, note: 'No free-data line covers ' + digits + ' (' + digits.length + ' digits). Showing the international 6-digit code ' + root6 + ' and its family - open it to see every country\'s national tariff line under it.' };
+    }
+    if (digits.length > 4) {
+      const root4 = digits.slice(0, 4);
+      const fb = find(root4);
+      if (fb.length) return { out: fb, fuzzy: false, note: 'No code starting ' + digits + ' - showing the ' + root4 + ' heading family.' };
+    }
+    return { out: [], fuzzy: false };
   }
   return search(db, t, '', '', sysFilter);
 }
@@ -559,6 +584,11 @@ function fmtQty(v, unit) {
   const a = Math.abs(n);
   const s = a >= 1e9 ? (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B' : a >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : a >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(Math.round(n));
   return s + (unit ? ' ' + unit : '');
+}
+function usdPerKg(value, kg) {
+  if (!kg) return '';
+  const v = value / kg;
+  return v >= 100 ? '$' + Math.round(v).toLocaleString('en-US') + '/kg' : v >= 1 ? '$' + v.toFixed(1).replace(/\.0$/, '') + '/kg' : '$' + (Math.round(v * 100) / 100) + '/kg';
 }
 function fmtUsd(v) {
   if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
@@ -747,6 +777,11 @@ function tradeCardHtml(chapter, code) {
     (tp && tp.x.length ? '<p>Top export destinations: ' + tp.x.map((p) => esc(p[0]) + ' <strong>' + fmtUsd(p[1]) + '</strong>').join(', ') + '</p>' : '') +
     (tp && tp.m.length ? '<p>Top import origins: ' + tp.m.map((p) => esc(p[0]) + ' <strong>' + fmtUsd(p[1]) + '</strong>').join(', ') + '</p>' : '') +
     (tp && (tp.xq || tp.xn) ? '<p>Export volume: ' + (tp.xq ? fmtQty(tp.xq[0], tp.xq[1]) : '') + (tp.xq && tp.xn ? ' - ' : '') + (tp.xn ? 'net weight ' + fmtQty(tp.xn[0], 'kg') + (tp.xn[1] ? ' (estimated)' : '') : '') + '</p>' : '') +
+    (() => { const tr = c6 ? TRADE_TREND[c6] : null; if (!tr) return '';
+      const yrs = tr.filter((r) => r[1] || r[2]); if (yrs.length < 2) return '';
+      const first = yrs[0], last = yrs[yrs.length - 1];
+      const grow = (a, b) => (a > 0 && b > 0) ? ' (' + (b >= a ? 'up ' + (b / a).toFixed(1).replace(/\.0$/, '') + 'x' : 'down ' + Math.round((1 - b / a) * 100) + '%') + ')' : '';
+      return '<p>Trend ' + first[0] + ' to ' + last[0] + ': imports ' + fmtUsd(first[1]) + ' to ' + fmtUsd(last[1]) + grow(first[1], last[1]) + ' - exports ' + fmtUsd(first[2]) + ' to ' + fmtUsd(last[2]) + grow(first[2], last[2]) + '</p>'; })() +
     '<p class="muted">UN Comtrade annual data (reporter: India), USD, imports at CIF. Product line is 6-digit HS level; chapter line covers all products under chapter ' + esc(chapter) + '. Top partners and volumes where baked. Baked into the dataset, not fetched live.</p></div>';
 }
 
@@ -788,7 +823,14 @@ function comtradeFacts(e) {
   if (tp && tp.m.length) f += 'Top import origins: ' + tp.m.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
   if (tp && tp.xq) f += 'Export volume: ' + fmtQty(tp.xq[0], tp.xq[1]) + '. ';
   if (tp && tp.xn) f += 'Export net weight: ' + fmtQty(tp.xn[0], 'kg') + (tp.xn[1] ? ' (estimated)' : '') + '. ';
-  return f + 'Use these exact figures and countries wherever trade values, volumes or top trading partners are discussed; never contradict them or invent different ones.\n';
+  if (tp && tp.gx && tp.gx.length) f += 'Top global exporters of this product (all reporters): ' + tp.gx.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  if (tp && tp.gm && tp.gm.length) f += 'Top global importers of this product (all reporters): ' + tp.gm.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  const tr = TRADE_TREND[c6];
+  if (tr) {
+    const yrs = tr.filter((r) => r[1] || r[2]);
+    if (yrs.length) f += 'India trade trend, USD (year: imports / exports): ' + yrs.map((r) => r[0] + ': ' + fmtUsd(r[1]) + ' / ' + fmtUsd(r[2])).join(', ') + '. ';
+  }
+  return f + 'Use these exact figures and countries wherever trade values, volumes, trends or top trading partners are discussed; never contradict them or invent different ones.\n';
 }
 
 async function tplNarrative(db, idx, apiKey) {
@@ -998,11 +1040,21 @@ function buildTemplateReport(db, idx, narrative, opts) {
     (trade6 ? '<h3>India trade for this product, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports (CIF, USD)', escA(fmtUsd(trade6[0]))], ['Exports (USD)', escA(fmtUsd(trade6[1]))]]) : '') +
     (() => { const tp6 = TRADE_PARTNERS[e[1].slice(0, 6)]; if (!tp6) return '';
       const rows = [];
-      for (const p of tp6.x) rows.push(['Exports to ' + p[0], escA(fmtUsd(p[1]))]);
-      for (const p of tp6.m) rows.push(['Imports from ' + p[0], escA(fmtUsd(p[1]))]);
+      for (const p of tp6.x) rows.push(['Exports to ' + p[0], escA(fmtUsd(p[1])) + (p[2] ? ' - ' + escA(usdPerKg(p[1], p[2])) : '')]);
+      for (const p of tp6.m) rows.push(['Imports from ' + p[0], escA(fmtUsd(p[1])) + (p[2] ? ' - ' + escA(usdPerKg(p[1], p[2])) : '')]);
       if (tp6.xq) rows.push(['Export volume', escA(fmtQty(tp6.xq[0], tp6.xq[1]))]);
       if (tp6.xn) rows.push(['Export net weight', escA(fmtQty(tp6.xn[0], 'kg')) + (tp6.xn[1] ? ' (estimated)' : '')]);
-      return rows.length ? '<h3>Top trading partners and volumes, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable(rows) : ''; })() +
+      let out = rows.length ? '<h3>Top trading partners and volumes, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable(rows) : '';
+      if (tp6.gx && tp6.gx.length) out += '<h3>World top exporters and importers, HS ' + escA(e[1].slice(0, 6)) + ', calendar ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' +
+        factTable(tp6.gx.map((p) => ['Exports from ' + p[0], escA(fmtUsd(p[1]))]).concat(tp6.gm.map((p) => ['Imports into ' + p[0], escA(fmtUsd(p[1]))])));
+      return out; })() +
+    (() => { const tr = TRADE_TREND[e[1].slice(0, 6)]; if (!tr) return '';
+      const yrs = tr.filter((r) => r[1] || r[2]); if (!yrs.length) return '';
+      const first = yrs[0], last = yrs[yrs.length - 1];
+      const grow = (a, b) => (a > 0 && b > 0) ? (b >= a ? 'up ' + (b / a).toFixed(1).replace(/\.0$/, '') + 'x' : 'down ' + Math.round((1 - b / a) * 100) + '%') : 'n/a';
+      const rows = yrs.map((r) => [String(r[0]), 'imports ' + escA(fmtUsd(r[1])) + ' - exports ' + escA(fmtUsd(r[2]))]);
+      rows.push(['Change ' + first[0] + ' to ' + last[0], 'imports ' + grow(first[1], last[1]) + ' - exports ' + grow(first[2], last[2])]);
+      return '<h3>India trade trend, HS ' + escA(e[1].slice(0, 6)) + ', ' + TRADE_TREND_YEARS[0] + '-' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1] + ' ' + tplTag('fact') + '</h3>' + factTable(rows); })() +
     (trade ? '<h3>India trade in chapter ' + escA(e[4]) + ', calendar ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports (CIF, USD)', escA(fmtUsd(trade[0]))], ['Exports (USD)', escA(fmtUsd(trade[1]))], ['Balance', trade[1] > trade[0] ? 'India is a net exporter in this chapter.' : (trade[0] > trade[1] * 3 ? 'India relies heavily on imports in this chapter.' : 'Mixed trade balance.')]]) : '') +
     tplTradeChart(trade6, trade, e[1].slice(0, 6)) +
     tplDutyChart(rated) +
@@ -1188,6 +1240,19 @@ async function openTemplateReport(db, idx) {
 }
 
 /* ---------- detail view ---------- */
+// India national line vs the international WCO 6-digit wording, side by side.
+function hsnVsHsHtml(db, e) {
+  if (e[0] !== 1 || e[1].length < 6) return '';
+  const w = db.keyToIdx.get('0:' + e[1].slice(0, 6));
+  if (w === undefined) return '';
+  const squash = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (squash(db.entries[w][2]) === squash(e[2])) return '';
+  return '<div class="detail-sec"><h3>HSN vs international HS</h3>' +
+    '<table class="tpl-table"><tbody>' +
+    '<tr><th>India HSN ' + esc(fmtCode(1, e[1])) + '</th><td>' + esc(pretty(e[2])) + '</td></tr>' +
+    '<tr><th>International HS ' + esc(fmtCode(0, e[1].slice(0, 6))) + ' (WCO)</th><td>' + esc(pretty(db.entries[w][2])) + '</td></tr>' +
+    '</tbody></table></div>';
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -1215,6 +1280,7 @@ function detailHtml(idx) {
     (e[0] === 1 ? gstRowHtml(e[1]) : '') +
     '</dl>' +
     scometFlagHtml(e);
+  s += hsnVsHsHtml(db, e);
   if (!S.clientMode) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
       '<textarea class="note-box" id="d-note" rows="3" placeholder="Your private note for this code - client name, shipment, price, anything. Saved on this device only.">' + esc(note) + '</textarea></div>';
@@ -1679,15 +1745,18 @@ function paintResults() {
   const idle = !V.q.trim();
   if (idle) { slot.innerHTML = ''; return; }
   const r = smartSearch(S.db, V.q, V.sysFilter);
-  const fam = groupFamilies(S.db, r.out);
+  const exact = r.exact || [];
+  const fam = groupFamilies(S.db, r.out).filter((i) => !exact.includes(i));
   const shown = fam.slice(0, 60);
   let s = '';
-  if (fam.length) {
-    s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length) + ' ' + (fam.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
-    s += '<ul class="result-list no-print">' + shown.map((i) => {
+  if (r.note) s += '<p class="alert-banner no-print">' + esc(r.note) + '</p>';
+  if (exact.length || fam.length) {
+    s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length + exact.length) + ' ' + (fam.length + exact.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
+    const row = (i, direct) => {
       const e = S.db.entries[i];
-      return '<li><button class="result-link linkbtn-block" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button></li>';
-    }).join('') + '</ul>';
+      return '<li><button class="result-link linkbtn-block' + (direct ? ' direct-hit' : '') + '" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span>' + (direct ? ' <span class="muted">exact match</span>' : '') + '</button></li>';
+    };
+    s += '<ul class="result-list no-print">' + exact.map((i) => row(i, true)).join('') + shown.map((i) => row(i, false)).join('') + '</ul>';
   } else {
     s = '<p class="muted">No matches. Try fewer words or a shorter code prefix.</p>';
   }
