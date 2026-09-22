@@ -11,6 +11,7 @@ import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
+import { CERT_RULES, CERT_SRC } from './certs';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -1067,6 +1068,20 @@ function ftaHtml(code) {
     '<p class="muted">Sources: India-UAE CEPA Appendix 2A-A (Tariff Schedule of UAE, in force 1 May 2022; "now" = agreement year 5, May 2026 - Apr 2027); Australia-India ECTA Annex 2A (Tariff Schedule of Australia, in force 29 Dec 2022). Preferential rates need a certificate of origin. Baked into the dataset, not fetched live.</p></div>';
 }
 
+
+function certsHtml(chapter) {
+  const ch = parseInt(chapter, 10);
+  if (!ch) return '';
+  const ins = [], outs = [];
+  for (const r of CERT_RULES) { if (ch >= r.from && ch <= r.to) (r.side === 'in' ? ins : outs).push(r); }
+  if (!ins.length && !outs.length) return '';
+  const mk = (list) => list.map((r) => '<li><strong>' + esc(r.who) + '</strong>: ' + esc(r.what) + ' <span class="muted">(' + esc(r.law) + ')</span></li>').join('');
+  return '<div class="detail-sec"><h3>Certificates &amp; compliance (India)</h3>' +
+    (ins.length ? '<h4>Bringing it into India</h4><ul class="certs-l">' + mk(ins) + '</ul>' : '') +
+    (outs.length ? '<h4>Sending it out of India</h4><ul class="certs-l">' + mk(outs) + '</ul>' : '') +
+    '<p class="muted">' + esc(CERT_SRC) + '</p></div>';
+}
+
 function tradeCardHtml(chapter, code) {
   const t = TRADE_CH[chapter];
   const c6 = code ? code.slice(0, 6) : '';
@@ -1660,6 +1675,7 @@ function detailHtml(idx) {
   s += currencySlotHtml(e[0]);
   s += tradeCardHtml(e[4], e[1]);
   s += ftaHtml(e[1]);
+  s += certsHtml(e[4]);
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
