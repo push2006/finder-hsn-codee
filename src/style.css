@@ -314,3 +314,5 @@ a { color: var(--ds-teal); }
 .sanc-red { background: #fdecec; border: 1px solid #e8b4b4; }
 .sanc-amber { background: #fff6e0; border: 1px solid #ecd9a0; }
 .sanc-green { background: #eaf6ec; border: 1px solid #b9dcc0; }
+.ports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.port-chip { border: 1px solid var(--line, #d8d2c8); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; }

@@ -14,6 +14,7 @@ import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
 import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
 import { SANC_ZONES, SANC_SRC } from './sanc';
+import { DOC_BASE_OUT, DOC_BASE_IN, DOC_EXTRA, PORTS, DOC_SRC } from './docs';
 import { SCOMET } from './scomet';
 import { ALIASES } from './aliases';
 import { SANCTIONS, SANCTIONS_META } from './sanctions';
@@ -1074,6 +1075,24 @@ function ftaHtml(code) {
 
 const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'aluminium', 'steel', 'stainless', 'plastic', 'plastics', 'rubber', 'paper', 'glass', 'copper', 'iron', 'textile', 'textiles', 'chemical', 'chemicals', 'products', 'technical', 'grade', 'certain', 'other', 'originating', 'thereof']);
 
+
+function docsHtml(chapter) {
+  const ch = parseInt(chapter, 10);
+  if (!ch) return '';
+  const mk = (base, side) => {
+    const rows = base.slice();
+    for (const r of DOC_EXTRA) {
+      if (ch >= r[0] && ch <= r[1] && (r[2] === 'both' || r[2] === side)) rows.push(r[3]);
+    }
+    return rows.map((t) => '<li>' + esc(t) + '</li>').join('');
+  };
+  return '<div class="detail-sec"><h3>Shipping documents &amp; India ports</h3>' +
+    '<h4>Exporting from India</h4><ul class="certs-l">' + mk(DOC_BASE_OUT, 'out') + '</ul>' +
+    '<h4>Importing into India</h4><ul class="certs-l">' + mk(DOC_BASE_IN, 'in') + '</ul>' +
+    '<h4>Main Indian ports</h4><div class="ports-grid">' + PORTS.map((pt) => '<div class="port-chip"><strong>' + esc(pt[0]) + '</strong> ' + esc(pt[1]) + ' <span class="muted">' + esc(pt[3]) + '</span></div>').join('') + '</div>' +
+    '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
+}
+
 function sancHtml() {
   const keys = Object.keys(SANC_ZONES).sort();
   let opts = '<option value="">Pick the buyer / supplier country</option>';
@@ -1745,6 +1764,7 @@ function detailHtml(idx) {
   s += certsHtml(e[4]);
   s += addHtml(e[1], e[2]);
   s += sancHtml();
+  s += docsHtml(e[4]);
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +

@@ -30,6 +30,8 @@ const tradetrend = plain('tradetrend.ts', 'TRADE_TREND')
   .replace('export const TRADE_TREND_YEARS =', 'const TRADE_TREND_YEARS =');
 const tradeseason = plain('tradeseson.ts', 'TRADE_SEASON')
   .replace('export const TRADE_SEASON_YEARS =', 'const TRADE_SEASON_YEARS =');
+const docs = read('docs.ts')
+  .replace(/export const (DOC_BASE_OUT|DOC_BASE_IN|DOC_EXTRA|PORTS|DOC_SRC) =/g, 'const $1 =');
 const sancz = read('sanc.ts')
   .replace('export const SANC_ZONES =', 'const SANC_ZONES =')
   .replace('export const SANC_SRC =', 'const SANC_SRC =');
@@ -83,6 +85,7 @@ ${trade6}
 ${tradepartners}
 ${tradetrend}
 ${tradeseason}
+${docs}
 ${sancz}
 ${add}
 ${certs}
