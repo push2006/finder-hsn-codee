@@ -1344,49 +1344,57 @@ function buildTemplateReport(db, idx, narrative, opts) {
     '<title>' + esc(prod) + ' - Product Research Report</title><style>' +
     '@page { size: A4; margin: 14mm 12mm 20mm 12mm; }' +
     '* { box-sizing: border-box; }' +
-    'body { font-family: Georgia, "Times New Roman", serif; color: #1c1c1e; margin: 0 auto; max-width: 186mm; background: #f2efe9; position: relative; }' +
-    'h1,h2,h3 { font-family: -apple-system, "Segoe UI", Arial, sans-serif; }' +
-    'p, li, td, th { font-size: 12.5px; line-height: 1.55; }' +
-    '.tpl-page { background: #fff; min-height: 250mm; padding: 22mm 16mm; margin: 8mm auto; break-after: page; box-shadow: 0 1px 8px rgba(0,0,0,.12); }' +
-    '.tpl-sec { background: #fff; padding: 14mm 16mm 10mm; margin: 8mm auto; break-before: page; box-shadow: 0 1px 8px rgba(0,0,0,.12); }' +
-    '.tpl-brand { font-family: -apple-system, Arial, sans-serif; letter-spacing: .35em; font-size: 13px; color: #8a7b5c; text-transform: uppercase; }' +
-    '.tpl-cover-title { font-size: 30px; margin: 4mm 0 2mm; }' +
-    '.tpl-cover-sub { color: #555; font-size: 14px; }' +
-    '.tpl-contents { columns: 2; list-style: none; padding: 0; margin: 8mm 0 0; }' +
-    '.tpl-contents li { padding: 2.2mm 0; border-bottom: 1px solid #eee; font-size: 12.5px; break-inside: avoid; }' +
-    '.tpl-num { font-family: -apple-system, Arial, sans-serif; color: #8a7b5c; font-weight: 700; }' +
-    '.tpl-tag { display: inline-block; font-family: -apple-system, Arial, sans-serif; font-size: 9px; letter-spacing: .04em; padding: 1.2mm 2.4mm; border-radius: 3px; vertical-align: middle; margin-left: 2mm; }' +
-    '.tpl-tag.fact { background: #e5f2e5; color: #1e6b2e; border: 1px solid #b8d9bc; }' +
+    'html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+    'body { font-family: Georgia, "Times New Roman", serif; color: #21242b; margin: 0 auto; max-width: 186mm; background: #efeae1; position: relative; }' +
+    'h1,h2,h3 { font-family: -apple-system, "Segoe UI", Arial, sans-serif; color: #1a2332; }' +
+    'p, li, td, th { font-size: 12.5px; line-height: 1.6; }' +
+    '.tpl-page { background: #fff; min-height: 250mm; padding: 16mm 16mm 20mm; margin: 8mm auto; break-after: page; box-shadow: 0 2px 14px rgba(26,35,50,.14); border-top: 2.2mm solid #9a7b2d; }' +
+    '.tpl-sec { background: #fff; padding: 12mm 16mm 10mm; margin: 8mm auto; break-before: page; box-shadow: 0 2px 14px rgba(26,35,50,.14); border-top: 1mm solid #e4dcc8; }' +
+    '.tpl-cover-top { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #e4dcc8; padding-bottom: 3mm; }' +
+    '.tpl-brand { font-family: -apple-system, Arial, sans-serif; letter-spacing: .42em; font-size: 14px; font-weight: 700; color: #9a7b2d; text-transform: uppercase; }' +
+    '.tpl-doctype { font-family: -apple-system, Arial, sans-serif; font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: #8b8574; }' +
+    '.tpl-cover-title { font-size: 34px; line-height: 1.12; letter-spacing: -0.01em; margin: 8mm 0 2.5mm; }' +
+    '.tpl-cover-sub { color: #5a616e; font-size: 14.5px; margin: 0 0 4mm; }' +
+    '.tpl-contents { columns: 2; list-style: none; padding: 0; margin: 6mm 0 0; }' +
+    '.tpl-contents li { padding: 2.2mm 0; border-bottom: 1px solid #eee6d4; font-size: 12.5px; break-inside: avoid; }' +
+    '.tpl-contents .tpl-num { color: #9a7b2d; }' +
+    '.tpl-page h2 { font-size: 18px; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 2px solid #1a2332; break-after: avoid; }' +
+    '.tpl-sec h2 { display: flex; align-items: baseline; gap: 3mm; font-size: 21px; letter-spacing: -0.005em; margin: 0 0 5mm; padding-bottom: 2.6mm; border-bottom: 2px solid #1a2332; break-after: avoid; }' +
+    '.tpl-num { font-family: -apple-system, Arial, sans-serif; color: #9a7b2d; font-weight: 700; }' +
+    '.tpl-sec h2 .tpl-num { flex: 0 0 auto; background: #1a2332; color: #f3ecd9; font-size: 12px; letter-spacing: .08em; border-radius: 2px; padding: 1.4mm 2.6mm; }' +
+    '.tpl-sec h3 { font-size: 14px; margin: 6mm 0 2mm; break-after: avoid; }' +
+    '.tpl-tag { display: inline-block; font-family: -apple-system, Arial, sans-serif; font-size: 8.5px; font-weight: 700; letter-spacing: .07em; padding: 1mm 2.6mm; border-radius: 999px; vertical-align: middle; margin-left: 2mm; }' +
+    '.tpl-tag.fact { background: #e8f3e9; color: #1e6b2e; border: 1px solid #b8d9bc; }' +
     '.tpl-tag.judge { background: #fdf0dc; color: #8a5a12; border: 1px solid #ecd3a8; }' +
-    '.tpl-table { width: 100%; border-collapse: collapse; margin: 3mm 0; }' +
-    '.tpl-table th, .tpl-table td { border: 1px solid #ddd; padding: 1.8mm 2.4mm; text-align: left; vertical-align: top; font-size: 11.5px; }' +
-    '.tpl-table thead th { background: #f5f1e8; font-family: -apple-system, Arial, sans-serif; font-size: 10.5px; }' +
-    '.tpl-table tbody th { width: 34%; background: #faf8f3; font-family: -apple-system, Arial, sans-serif; font-size: 10.5px; }' +
+    '.tpl-table { width: 100%; border-collapse: collapse; margin: 3.5mm 0; }' +
+    '.tpl-table th, .tpl-table td { border: 1px solid #e3ddcd; padding: 2mm 2.6mm; text-align: left; vertical-align: top; font-size: 11.5px; }' +
+    '.tpl-table thead th { background: #1a2332; color: #f5f1e6; border-color: #1a2332; font-family: -apple-system, Arial, sans-serif; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }' +
+    '.tpl-table tbody th { width: 34%; background: #f7f3e8; color: #1a2332; font-family: -apple-system, Arial, sans-serif; font-size: 10.5px; }' +
+    '.tpl-table tbody tr:nth-child(even) td { background: #faf7ef; }' +
+    '.tpl-table tr { break-inside: avoid; }' +
     '.tpl-list { padding-left: 6mm; }' +
-    '.tpl-sec h2 { border-left: 2.5mm solid #8a7b5c; padding: 1.5mm 0 1.5mm 3mm; background: linear-gradient(90deg, #f7f3ea, transparent); }' +
-    '.tpl-table tbody tr:nth-child(even) td { background: #fcfaf5; }' +
-    '.tpl-kpis { display: flex; flex-wrap: wrap; gap: 3mm; margin: 5mm 0; }' +
-    '.tpl-kpi { flex: 1 1 36mm; border: 1px solid #e3dccb; border-radius: 4px; padding: 3mm; background: #fbf9f4; break-inside: avoid; }' +
-    '.tpl-kpi .k { font-family: -apple-system, Arial, sans-serif; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: #8a7b5c; }' +
-    '.tpl-kpi .v { font-family: -apple-system, Arial, sans-serif; font-size: 16.5px; font-weight: 700; margin-top: 1mm; }' +
-    '.tpl-kpi .s { font-size: 10px; color: #666; margin-top: .5mm; }' +
-    '.tpl-chart { margin: 4mm 0; break-inside: avoid; }' +
-    '.tpl-keep { break-inside: avoid; }' +
-    '.tpl-chart .cap { font-size: 10px; color: #666; margin-top: 1mm; }' +
     '.tpl-check { list-style: none; padding: 0; margin: 3mm 0; }' +
-    '.tpl-check li { padding: 1.8mm 0 1.8mm 7mm; position: relative; border-bottom: 1px dashed #e8e2d4; break-inside: avoid; }' +
-    '.tpl-check li::before { content: ""; position: absolute; left: 0; top: 2.6mm; width: 2.8mm; height: 2.8mm; border: 1px solid #8a7b5c; border-radius: .8mm; }' +
-    '.tpl-src { font-size: 10.5px; color: #666; border-top: 1px solid #eee; padding-top: 2mm; margin-top: 5mm; }' +
-    '.tpl-src a { color: #4a5a8a; }' +
-    '.muted { color: #666; font-size: 11px; }' +
-    '.pgnum { position: absolute; right: 12mm; font-family: -apple-system, Arial, sans-serif; font-size: 9px; color: #999; }' +
-    '.tpl-foot { position: fixed; bottom: 0; left: 0; right: 0; font-family: -apple-system, Arial, sans-serif; font-size: 9px; color: #999; text-align: center; padding: 1mm 0; }' +
+    '.tpl-check li { padding: 2mm 0 2mm 7.5mm; position: relative; border-bottom: 1px dashed #e8e2d4; break-inside: avoid; }' +
+    '.tpl-check li::before { content: ""; position: absolute; left: 0; top: 2.8mm; width: 2.8mm; height: 2.8mm; border: 1.5px solid #9a7b2d; border-radius: .8mm; background: #fbf8ef; }' +
+    '.tpl-kpis { display: flex; flex-wrap: wrap; gap: 3mm; margin: 6mm 0; }' +
+    '.tpl-kpi { flex: 1 1 36mm; border: 1px solid #e7dfc9; border-top: 1.2mm solid #9a7b2d; border-radius: 4px; padding: 3.2mm 3.4mm; background: #fffdf7; break-inside: avoid; }' +
+    '.tpl-kpi .k { font-family: -apple-system, Arial, sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9a7b2d; }' +
+    '.tpl-kpi .v { font-family: -apple-system, Arial, sans-serif; font-size: 17.5px; font-weight: 700; color: #1a2332; margin-top: 1.2mm; }' +
+    '.tpl-kpi .s { font-size: 10px; color: #6a7076; margin-top: .6mm; }' +
+    '.tpl-chart { margin: 4mm 0; break-inside: avoid; background: #fffdf7; border: 1px solid #efe8d6; border-radius: 4px; padding: 3mm; }' +
+    '.tpl-keep { break-inside: avoid; }' +
+    '.tpl-chart .cap { font-size: 10px; color: #6a7076; margin-top: 1mm; }' +
+    '.tpl-src { font-size: 10.5px; color: #6a7076; border-top: 1px solid #eee6d4; padding-top: 2mm; margin-top: 5mm; }' +
+    '.tpl-src a { color: #37527e; }' +
+    '.muted { color: #6a7076; font-size: 11px; }' +
+    '.pgnum { position: absolute; right: 12mm; font-family: -apple-system, Arial, sans-serif; font-size: 9px; color: #9aa0a8; }' +
+    '.tpl-foot { position: fixed; bottom: 0; left: 0; right: 0; font-family: -apple-system, Arial, sans-serif; font-size: 9px; color: #9aa0a8; text-align: center; padding: 1.2mm 0; background: #fff; border-top: 1px solid #eee6d4; }' +
     '.tpl-actions { position: fixed; top: 8px; right: 8px; z-index: 9; }' +
-    '.tpl-actions button { font: 600 13px -apple-system, Arial, sans-serif; padding: 8px 14px; border: 0; border-radius: 8px; background: #1c1c1e; color: #fff; cursor: pointer; }' +
-    '@media print { body { background: #fff; max-width: none; } .tpl-page, .tpl-sec { box-shadow: none; margin: 0; } .tpl-actions { display: none; } }' +
+    '.tpl-actions button { font: 600 13px -apple-system, Arial, sans-serif; padding: 8px 14px; border: 0; border-radius: 8px; background: #1a2332; color: #fff; cursor: pointer; box-shadow: 0 2px 8px rgba(26,35,50,.3); }' +
+    '@media print { body { background: #fff; max-width: none; } .tpl-page, .tpl-sec { box-shadow: none; margin: 0; } .tpl-actions { display: none; } h2, h3 { break-after: avoid; } }' +
     '</style></head><body>' +
     '<div class="tpl-actions"><button onclick="window.print()">Save as PDF / Print</button></div>' +
-    '<div class="tpl-page"><div class="tpl-brand">Push</div>' +
+    '<div class="tpl-page"><div class="tpl-cover-top"><div class="tpl-brand">Push</div><div class="tpl-doctype">Product Research Report</div></div>' +
     '<h1 class="tpl-cover-title">' + esc(prod) + '</h1>' +
     '<p class="tpl-cover-sub">' + esc(SYS[e[0]].name) + ' - code ' + esc(fmtCode(e[0], e[1])) + '</p>' +
     tplKpis(e, g, trade6, trade, rated) +
