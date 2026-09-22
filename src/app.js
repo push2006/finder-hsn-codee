@@ -65,8 +65,9 @@ const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : BUILT
 const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEYS.trim() || BUILTIN_GROQ_KEYS.trim());
 let aiSharedKey = false;
 let aiProviderUsed = 'gemini';
+let aiLiveSearch = false;
 const geminiAiLabel = () => (aiProviderUsed === 'groq'
-  ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', model knowledge only - no live search'
+  ? 'Groq ' + (groqModelUsed || GROQ_MODELS[0]) + ', ' + (aiLiveSearch ? 'live web search via Groq browser search (Exa)' : 'model knowledge only - no live search')
   : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
@@ -151,7 +152,7 @@ async function groqPost(apiKey, prompt, opts) {
   for (const m of GROQ_MODELS) {
     let res, data;
     try {
-      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: m, messages: [{ role: 'user', content: prompt }], temperature: opts.temperature, max_tokens: opts.maxTokens }) });
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(Object.assign({ model: m, messages: [{ role: 'user', content: prompt }], temperature: opts.temperature, max_tokens: opts.maxTokens }, opts.tools ? { tools: opts.tools } : {})) });
       data = await res.json().catch(() => ({}));
     } catch (err) { netFail = true; continue; }
     if (res.ok) { groqModelUsed = m; return String((((data.choices || [])[0] || {}).message || {}).content || ''); }
@@ -169,6 +170,7 @@ async function groqPost(apiKey, prompt, opts) {
   throw new Error('Live AI is temporarily unavailable. The offline data report still works - try again later.');
 }
 async function aiPickText(prompt, opts) {
+  aiLiveSearch = false;
   if (V.apiKey) { aiSharedKey = false; aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, false); }
   if (AI_PROXY_URL) {
     aiSharedKey = false;
@@ -182,16 +184,30 @@ async function aiPickText(prompt, opts) {
   throw new Error('no-ai');
 }
 async function aiReportText(prompt, grounded, opts) {
-  if (V.apiKey) { aiSharedKey = false; aiProviderUsed = ownProvider(); return aiProviderUsed === 'groq' ? groqPost(V.apiKey, prompt, opts) : geminiText(V.apiKey, prompt, opts, grounded); }
+  aiLiveSearch = false;
+  const geminiReport = (key, shared) => { aiSharedKey = shared; aiProviderUsed = 'gemini'; return geminiText(key, prompt, opts, grounded); };
+  const groqReport = async (key, shared) => {
+    // Direct Groq keys can use the built-in browser_search tool for live-web reports.
+    aiSharedKey = shared; aiProviderUsed = 'groq';
+    const livePrompt = prompt.replace('Use Google Search for current facts.', 'Use live web search for current facts. Write facts only - no inline citation markers or footnote symbols.');
+    try { const t = await groqPost(key, livePrompt, Object.assign({}, opts, { tools: [{ type: 'browser_search' }] })); aiLiveSearch = true; return t; }
+    catch (err) { aiLiveSearch = false; return groqPost(key, prompt, opts); }
+  };
+  if (V.apiKey) {
+    if (ownProvider() === 'groq') return groqReport(V.apiKey, false);
+    return geminiReport(V.apiKey, false);
+  }
   if (AI_PROXY_URL) {
     aiSharedKey = false;
     try { aiProviderUsed = 'gemini'; return await geminiText('', prompt, opts, grounded); }
     catch (err) { if (!/not configured/.test(err.message || '')) throw err; aiProviderUsed = 'groq'; return groqPost('', prompt, opts); }
   }
-  const mk = builtinKeys('gemini');
-  if (mk.length) { aiSharedKey = true; aiProviderUsed = 'gemini'; return geminiText(mk, prompt, opts, grounded); }
   const gk = builtinKeys('groq');
-  if (gk.length) { aiSharedKey = true; aiProviderUsed = 'groq'; return groqPost(gk, prompt, opts); }
+  if (gk.length) {
+    try { return await groqReport(gk, true); } catch (err) { if (!builtinKeys('gemini').length) throw err; }
+  }
+  const mk = builtinKeys('gemini');
+  if (mk.length) return geminiReport(mk, true);
   throw new Error('no-ai');
 }
 
@@ -742,10 +758,17 @@ async function tplNarrative(db, idx, apiKey) {
     catch (err) { if (grounded) continue; throw err; }
     const a = text.indexOf('{'), b = text.lastIndexOf('}');
     if (a < 0 || b <= a) continue;
-    try {
-      const obj = JSON.parse(text.slice(a, b + 1));
-      if (obj && typeof obj === 'object') { geminiGrounded = grounded && aiProviderUsed === 'gemini'; return obj; }
-    } catch { /* try the next attempt */ }
+    let obj = null;
+    try { obj = JSON.parse(text.slice(a, b + 1)); } catch { /* live-search answers may prepend page snippets */ }
+    if (!obj) {
+      const m = text.indexOf('"sec01a"');
+      if (m > 0) { const from = text.lastIndexOf('{', m); if (from >= 0 && from < b) { try { obj = JSON.parse(text.slice(from, b + 1)); } catch { /* next attempt */ } } }
+    }
+    if (obj && typeof obj === 'object') {
+      for (const k in obj) if (typeof obj[k] === 'string') obj[k] = obj[k].replace(/【[^】]*】/g, '').trim();
+      geminiGrounded = grounded && aiProviderUsed === 'gemini';
+      return obj;
+    }
   }
   return null;
 }
@@ -971,6 +994,9 @@ function buildTemplateReport(db, idx, narrative, opts) {
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">13</span> Advantage</h2>' + (has('sec13') ? tplNarr(narrative, 'sec13') : tplFallback('advantage', chTitle)) + tplSrc([{ t: has('sec13') ? 'AI analysis, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">14</span> Change</h2>' +
     '<h3>Data currency ' + tplTag('fact') + '</h3><p>This report was generated ' + escA(today) + ' from dataset build ' + escA(DATA_BUILD) + '. The finder refreshes official sources automatically every week and its change-alerts feature flags saved codes whose duty, GST or linkage changed between builds.</p>' +
+    (aiUsed && aiProviderUsed === 'groq' ? '<p>' + tplTag('AI') + ' ' + (aiLiveSearch
+      ? 'AI-written market sections in this report used live web search today (Groq browser search, powered by Exa). Inline citation markers were removed for readability; verify live claims against the official sources cited in each section before acting.'
+      : 'AI-written market sections in this report used the Groq model\u2019s built-in knowledge only - no live web search was performed. Treat them as leads and verify against current official sources.') + '</p>' : '') +
     (has('sec14') ? '<h3>What is changing</h3>' + tplNarr(narrative, 'sec14') : tplFallback('change and outlook', chTitle)) +
     tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec14') ? [{ t: 'AI analysis, generated ' + today }] : [])) + '</section>';
 
