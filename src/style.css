@@ -332,3 +332,7 @@ a { color: var(--ds-teal); }
 .risk-chip { color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.05em; }
 .risk-list { margin: 8px 0; padding-left: 20px; }
 .risk-list li { margin: 5px 0; font-size: 13.5px; }
+
+.rev-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.rev-in { flex: 1 1 240px; padding: 9px 12px; font-size: 15px; border: 1px solid var(--line, #d8cfc4); border-radius: 8px; font-family: inherit; }
+.rev-res h4 { margin: 14px 0 6px; }

@@ -965,6 +965,80 @@ function riskHtml(e) {
     '<p class="muted">Composite of: India partner concentration (UN Comtrade 2025' + (tp ? '' : ' - partner breakdown not yet baked for this code, coverage grows daily') + '), sanctions-zone exposure of top partners, in-force anti-dumping measures (CBIC) and SCOMET export control (DGFT). Screening aid, not legal advice - verify before shipping.</p></div>';
 }
 
+// Reverse lookup - foreign code -> India HSN crosswalk.
+function resolveForeign(raw) {
+  let digs = String(raw || '').replace(/\D/g, '');
+  if (digs.length > 12) digs = digs.slice(0, 12);
+  if (digs.length < 6) return { err: 'short', input: digs };
+  const findSys = (c) => {
+    const out = [];
+    for (let s = 0; s < SYS.length; s++) {
+      if (s === 0 && c.length > 6) continue;
+      const i = S.db.keyToIdx.get(s + ':' + c);
+      if (i !== undefined) out.push([s, i]);
+    }
+    return out;
+  };
+  let code = digs;
+  let hits = findSys(code);
+  let trimmed = 0;
+  while (!hits.length && code.length > 6) {
+    code = code.slice(0, -1);
+    trimmed++;
+    hits = findSys(code);
+  }
+  const root6 = code.slice(0, 6);
+  const rootIdx = S.db.keyToIdx.get('0:' + root6);
+  const india = [];
+  for (let i = 0; i < S.db.entries.length; i++) {
+    const e = S.db.entries[i];
+    if (e[0] === 1 && e[1].length >= 8 && e[1].slice(0, 6) === root6) india.push(i);
+  }
+  india.sort((a, b) => S.db.entries[b][1].length - S.db.entries[a][1].length || a - b);
+  return { input: digs, code: code, hits: hits, trimmed: trimmed, root6: root6, rootIdx: rootIdx === undefined ? -1 : rootIdx, india: india };
+}
+function revResultHtml(res) {
+  if (res.err === 'short') return '<p class="muted">Type at least 6 digits of the foreign code - dots, spaces and dashes are fine.</p>';
+  let s = '';
+  if (!res.hits.length) {
+    return '<p class="muted">No system in the finder carries a line under ' + esc(res.root6) + ' - check the code. An India line cannot be resolved for it.</p>';
+  }
+  const inHit = res.hits.filter((h) => h[0] === 1);
+  if (inHit.length && res.input.length > 6) {
+    s += '<div class="alert-banner"><strong>This is already an India HSN line</strong> - ' + esc(fmtCode(1, res.code)) + ' ' + esc(pretty(S.db.entries[inHit[0][1]][2])) + '. Tap it below for the full detail.</div>';
+  }
+  if (res.input.length > 6) {
+    const others = res.hits.filter((h) => h[0] !== 1).slice(0, 6);
+    if (others.length) {
+      s += '<p>Your code <strong>' + esc(res.input) + '</strong> resolves to ' + (res.trimmed ? 'the nearest baked line' : 'a direct line') + ' in ' + others.length + ' foreign system' + (others.length > 1 ? 's' : '') + (res.trimmed ? ' (trimmed ' + res.trimmed + ' trailing digit' + (res.trimmed > 1 ? 's' : '') + ' - the finder bakes up to 10-digit national lines)' : '') + ':</p>' +
+        '<ul class="result-list no-print">' + others.map((h) => {
+          const e = S.db.entries[h[1]];
+          return '<li><button class="result-link linkbtn-block" data-open="' + h[1] + '">' + sysTagHtml(h[0]) + '<span class="rcode">' + esc(fmtCode(h[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button></li>';
+        }).join('') + '</ul>';
+    }
+  }
+  const rootDesc = res.rootIdx >= 0 ? S.db.entries[res.rootIdx][2] : '';
+  s += '<h4>India HSN lines under ' + esc(res.root6) + (rootDesc ? ' - ' + esc(pretty(rootDesc)) : '') + '</h4>';
+  if (res.india.length) {
+    s += '<ul class="result-list no-print">' + res.india.slice(0, 40).map((i) => {
+      const e = S.db.entries[i];
+      return '<li><button class="result-link linkbtn-block direct-hit" data-open="' + i + '">' + sysTagHtml(1) + '<span class="rcode">' + esc(fmtCode(1, e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button></li>';
+    }).join('') + '</ul>' +
+    (res.india.length > 40 ? '<p class="muted">Showing 40 of ' + res.india.length + ' India lines - tap any row for the full detail with GST, FTA rates and landed cost.</p>' : '<p class="muted">Tap a row for the full detail - GST, FTA rates, landed cost, risk scan.</p>');
+  } else {
+    s += '<p class="muted">No India national line sits under this root in the baked India dataset.</p>';
+  }
+  s += '<p class="muted">Crosswalk through the shared 6-digit international root (WCO HS 2022) that the foreign system and India both build on. Rates and rules live on each line\'s detail page - verify on the official portal before filing.</p>';
+  return s;
+}
+function revPanelHtml() {
+  return '<div class="chip-sec rev-panel"><h3>Reverse lookup - foreign code to India HSN</h3>' +
+    '<p class="muted">Buyer or supplier gave you THEIR country\'s tariff code? Paste it here (any format, dots or spaces fine) - get the matching India HSN lines.</p>' +
+    '<div class="rev-row no-print"><input id="rev-in" class="rev-in" type="text" inputmode="numeric" placeholder="e.g. 1006.30.4000 (a US HTS line)" value="' + esc(V.revQ || '') + '"><button class="file-button is-compact" id="rev-go">Find India HSN</button></div>' +
+    (V.revRes ? '<div class="rev-res">' + revResultHtml(V.revRes) + '</div>' : '') +
+    '</div>';
+}
+
 function dutyCompareHtml(e) {
   const groups = linkage(S.db, e);
   const rows = groups.map((g) => {
@@ -2288,6 +2362,8 @@ function searchIdleHtml() {
     '<p><button class="file-button is-compact" data-variant="secondary" id="browse-toggle">' + (V.browse ? 'Hide chapter browser' : 'Browse all 98 chapters') + '</button></p>' +
     '<p><button class="file-button is-compact" data-variant="secondary" id="boom-toggle">' + (V.boom ? 'Hide booming products' : 'Booming products 2025 - India\'s fastest-growing trade lines') + '</button></p>' +
     (V.boom ? boomPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
+    (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
     '<h3>What is inside</h3><ul>' + INSIDE_LIST.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
     '<h3>Sources</h3><ul>' + SYS.map((sy) => '<li><strong>' + sy.tag + '</strong>: ' + esc(sy.src) + '. <a href="' + sy.url + '" target="_blank" rel="noreferrer">Reference</a></li>').join('') + '</ul>' +
@@ -2367,6 +2443,18 @@ function paintIdle() {
   });
   const bch = el('boom-ch');
   if (bch) bch.addEventListener('change', () => { V.boomCh = bch.value; paintIdle(); });
+  const rt = el('rev-toggle');
+  if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
+  const runRev = () => {
+    const inp = el('rev-in');
+    V.revQ = inp ? inp.value : '';
+    V.revRes = resolveForeign(V.revQ);
+    paintIdle();
+  };
+  const rg = el('rev-go');
+  if (rg) rg.addEventListener('click', runRev);
+  const ri = el('rev-in');
+  if (ri) ri.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') runRev(); });
 }
 function paintResults() {
   const slot = el('res-slot');
