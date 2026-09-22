@@ -22,7 +22,7 @@ for (const kind of ['gemini', 'groq', 'mistral', 'nvidia']) {
 const OFF = { gemini: 0, groq: 0, mistral: 0, nvidia: 0 };
 
 const ROUTES = [
-  { kind: 'gemini', match: /^\/gemini\/v1beta\/models\/[A-Za-z0-9._-]+:generateContent$/, upstream: (p) => 'https://generativelanguage.googleapis.com' + p, header: (k) => ({ 'x-goog-api-key': k }) },
+  { kind: 'gemini', match: /^\/gemini\/v1beta\/models\/[A-Za-z0-9._-]+:generateContent$/, upstream: (p) => 'https://generativelanguage.googleapis.com' + p.replace(/^\/gemini/, ''), header: (k) => ({ 'x-goog-api-key': k }) },
   { kind: 'groq', match: /^\/groq\/openai\/v1\/chat\/completions$/, upstream: () => 'https://api.groq.com/openai/v1/chat/completions', header: (k) => ({ Authorization: 'Bearer ' + k }) },
   { kind: 'mistral', match: /^\/mistral\/v1\/chat\/completions$/, upstream: () => 'https://api.mistral.ai/v1/chat/completions', header: (k) => ({ Authorization: 'Bearer ' + k }) },
   { kind: 'nvidia', match: /^\/nvidia\/v1\/chat\/completions$/, upstream: () => 'https://integrate.api.nvidia.com/v1/chat/completions', header: (k) => ({ Authorization: 'Bearer ' + k }) },
