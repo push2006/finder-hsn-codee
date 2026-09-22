@@ -59,9 +59,9 @@ const AI_PROXY_TOKEN = '648772556a62e577d379272febf550b9e28c5723'; // must match
 // the page source and bots scan public repos - a shared key can be stolen and
 // its daily quota burned. The worker option above keeps keys hidden. Comma-
 // separate several keys to rotate when one hits its daily limit.
-const BUILTIN_GEMINI_KEYS = 'AIzaSyAeLPnOoR_M_jTJnj9dYGVOPyUJMJ91dDw';
-const BUILTIN_GROQ_KEYS = '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';
-const BUILTIN_MISTRAL_KEYS = 'mstrl_WQxT5dNryrhLiD89AJX9HMYnJzyGHn38_1iijpQ';
+const BUILTIN_GEMINI_KEYS = '';
+const BUILTIN_GROQ_KEYS = '';
+const BUILTIN_MISTRAL_KEYS = '';
 const BUILTIN_NVIDIA_KEYS = '';
 
 // ==== AI model swap points: change a model by editing one line ====
