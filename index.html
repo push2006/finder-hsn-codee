@@ -33522,8 +33522,11 @@ const ALIASES = {
   'slippers': [['footwear']],
   'medicine': [['medicaments']],
   'medicines': [['medicaments']],
-  'tv': [['television']],
-  'television': [['television']],
+  'tv': [['television', 'reception'], ['television']],
+  'television': [['television', 'reception'], ['television']],
+  'televisions': [['television', 'reception'], ['television']],
+  'smart tv': [['television', 'reception'], ['television']],
+  'led tv': [['television', 'reception'], ['television']],
   'earphones': [['headphones'], ['earphones']],
   'headphones': [['headphones']],
   'earbuds': [['headphones'], ['earphones']],
@@ -33588,6 +33591,43 @@ const ALIASES = {
   'solar panels': [['photovoltaic'], ['solar', 'cells']],
   'solar cell': [['photovoltaic'], ['solar', 'cells']],
   'solar cells': [['photovoltaic'], ['solar', 'cells']],
+  'pen drive': [['solid', 'state']],
+  'pen drives': [['solid', 'state']],
+  'pendrive': [['solid', 'state']],
+  'pendrives': [['solid', 'state']],
+  'usb drive': [['solid', 'state']],
+  'usb drives': [['solid', 'state']],
+  'usb stick': [['solid', 'state']],
+  'usb flash drive': [['solid', 'state']],
+  'flash drive': [['solid', 'state']],
+  'flash drives': [['solid', 'state']],
+  'thumb drive': [['solid', 'state']],
+  'thumb drives': [['solid', 'state']],
+  'memory stick': [['solid', 'state']],
+  'memory card': [['solid', 'state']],
+  'memory cards': [['solid', 'state']],
+  'mobile charger': [['battery', 'chargers']],
+  'phone charger': [['battery', 'chargers']],
+  'chargers': [['battery', 'chargers']],
+  'usb cable': [['fitted', 'connectors']],
+  'usb cables': [['fitted', 'connectors']],
+  'usb cord': [['fitted', 'connectors']],
+  'charging cable': [['fitted', 'connectors']],
+  'data cable': [['fitted', 'connectors']],
+  'power bank': [['lithium', 'accumulator']],
+  'power banks': [['lithium', 'accumulator']],
+  'powerbank': [['lithium', 'accumulator']],
+  'bluetooth speaker': [['loudspeakers']],
+  'bluetooth speakers': [['loudspeakers']],
+  'wireless speaker': [['loudspeakers']],
+  'wireless speakers': [['loudspeakers']],
+  'smart speaker': [['loudspeakers']],
+  'jeans': [['trousers', 'cotton'], ['denim', 'trousers']],
+  'denim jeans': [['trousers', 'cotton'], ['denim', 'trousers']],
+  'blue jeans': [['trousers', 'cotton'], ['denim', 'trousers']],
+  'keyboard': [['input', 'output']],
+  'keyboards': [['input', 'output']],
+  'computer keyboard': [['input', 'output']],
 };
 
 // Official sanctions name lists baked for offline checking. Sources and dates in SANCTIONS_META.
@@ -33629,7 +33669,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen25';
+const DATA_BUILD = '2026-09-23-gen26';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -34057,6 +34097,11 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
     (!hsn || (e[1].startsWith(hsn) && (e[0] === 0 || e[0] === 1))) &&
     (!tar || (e[1].startsWith(tar) && e[0] >= 1));
   const run = (variants) => {
+    /* Short words (under 5 chars) must match a whole word, not sit inside a
+       longer one - otherwise pen hits cycloterPENic and susPENsion. Longer
+       words keep substring matching for compound nomenclature wording. */
+    const matchers = variants.map((vs) => vs.map((v) =>
+      v.length < 5 ? new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(v).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u') : null));
     const out = [];
     for (let i = 0; i < db.entries.length; i++) {
       const e = db.entries[i];
@@ -34065,9 +34110,10 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
       if (variants.length) {
         const h = db.hay[i];
         let ok = true;
-        for (const vs of variants) {
+        for (let vi = 0; vi < variants.length; vi++) {
+          const vs = variants[vi], ms = matchers[vi];
           let hit = false;
-          for (const v of vs) { if (h.includes(v)) { hit = true; break; } }
+          for (let k = 0; k < vs.length; k++) { if (ms[k] ? ms[k].test(h) : h.includes(vs[k])) { hit = true; break; } }
           if (!hit) { ok = false; break; }
         }
         if (!ok) continue;
@@ -34079,7 +34125,7 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
   };
   // Relevance order: exact whole-word (token) matches first, substring-only hits last;
   // ties break to earliest mention, then shallower codes and tighter descriptions.
-  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}-])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}-]|$)', 'u'));
+  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u'));  /* hyphen is a boundary: solid-state = two tokens */
   const tokRes = mkTokRes(words);
   const phrase = descQ.toLowerCase().trim().replace(/\s+/g, ' ');
   const rank = (idxs, rWords) => {

@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen25';
+const DATA_BUILD = '2026-09-23-gen26';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -475,6 +475,11 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
     (!hsn || (e[1].startsWith(hsn) && (e[0] === 0 || e[0] === 1))) &&
     (!tar || (e[1].startsWith(tar) && e[0] >= 1));
   const run = (variants) => {
+    /* Short words (under 5 chars) must match a whole word, not sit inside a
+       longer one - otherwise pen hits cycloterPENic and susPENsion. Longer
+       words keep substring matching for compound nomenclature wording. */
+    const matchers = variants.map((vs) => vs.map((v) =>
+      v.length < 5 ? new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(v).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u') : null));
     const out = [];
     for (let i = 0; i < db.entries.length; i++) {
       const e = db.entries[i];
@@ -483,9 +488,10 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
       if (variants.length) {
         const h = db.hay[i];
         let ok = true;
-        for (const vs of variants) {
+        for (let vi = 0; vi < variants.length; vi++) {
+          const vs = variants[vi], ms = matchers[vi];
           let hit = false;
-          for (const v of vs) { if (h.includes(v)) { hit = true; break; } }
+          for (let k = 0; k < vs.length; k++) { if (ms[k] ? ms[k].test(h) : h.includes(vs[k])) { hit = true; break; } }
           if (!hit) { ok = false; break; }
         }
         if (!ok) continue;
@@ -497,7 +503,7 @@ function search(db, descQ, hsnQ, tarQ, sysFilter) {
   };
   // Relevance order: exact whole-word (token) matches first, substring-only hits last;
   // ties break to earliest mention, then shallower codes and tighter descriptions.
-  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}-])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}-]|$)', 'u'));
+  const mkTokRes = (ws) => ws.map((w) => new RegExp('(^|[^\\p{L}\\p{N}])(' + stemForms(w).join('|') + ')(s|es)?([^\\p{L}\\p{N}]|$)', 'u'));  /* hyphen is a boundary: solid-state = two tokens */
   const tokRes = mkTokRes(words);
   const phrase = descQ.toLowerCase().trim().replace(/\s+/g, ' ');
   const rank = (idxs, rWords) => {
