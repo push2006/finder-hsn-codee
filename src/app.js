@@ -34,7 +34,7 @@ const SYS = [
   { tag: 'BR', name: 'Brazil NCM (Mercosur nomenclature)', src: 'Receita Federal / Siscomex Classif official NCM table, in force 23 Sep 2026 (Res. Gecex 926/2026), with II import duty from the Mercosur Common External Tariff (TEC), official MDIC consolidated Anexo I of Res. Gecex 272/2021 updated 08-09-2026 (all 10,515 eight-digit NCM lines) - BK/BIT ex-tarifario reductions and Anexos II-X exception rates not baked', url: 'https://www.gov.br/receitafederal/pt-br/assuntos/aduana-e-comercio-exterior/classificacao-fiscal-de-mercadorias/download-ncm-nomenclatura-comum-do-mercosul' },
   { tag: 'TW', name: 'Taiwan Customs Import Tariff', src: 'Taiwan Customs Administration official import duty open data (data.gov.tw dataset 80871)', url: 'https://data.gov.tw/en/datasets/80871' },
   { tag: 'NZ', name: 'New Zealand Working Tariff (CusMod)', src: 'New Zealand Customs Service official CusMod tariff data files, updated nightly', url: 'https://www.customs.govt.nz/business/tariffs/tariff-classifications-and-rates/' },
-  { tag: 'NO', name: 'Norway Customs Tariff (Tolltariffen)', src: 'Norwegian Customs official open data service, tariff structure dataset', url: 'https://data.toll.no/no/dataset/tolltariffstruktur' },
+  { tag: 'NO', name: 'Norway Customs Tariff (Tolltariffen)', src: 'Norwegian Customs (Tolletaten) official open data: tolltariffstruktur nomenclature + tollavgiftssats ordinary customs duty rates (ordinær toll, country group TALL), current 23 Sep 2026 - all 7,436 eight-digit lines baked; EFTA/EU, GSP and other preferential rates not baked', url: 'https://data.toll.no/no/dataset/tolltariffstruktur' },
   { tag: 'SG', name: 'Singapore STCCED 2022', src: 'Singapore Customs official Singapore Trade Classification, Customs and Excise Duties 2022 (excise applies only to alcohol, tobacco, fuel and motor vehicles, so most lines show no duty)', url: 'https://www.customs.gov.sg/businesses/harmonized-system-hs-classification-of-goods/' },
   { tag: 'IL', name: 'Israel Customs Tariff and Purchase Tax', src: 'Israel Tax Authority official customs book open dataset (data.gov.il, updated 21 Sep 2026), English edition', url: 'https://data.gov.il/dataset/customsbook' },
   { tag: 'MX', name: 'Mexico TIGIE (LIGIE unified)', src: 'Secretaria de Economia official unified LIGIE text with NICO statistical lines, 28 Jul 2025 base', url: 'https://www.snice.gob.mx/cs/avi/snice/ligie.info22.html' },
@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen21';
+const DATA_BUILD = '2026-09-23-gen22';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -752,7 +752,7 @@ function landedCostHtml(e) {
     if (e[5] && e[5].indexOf('BCD ') === 0) rateDesc = 'BCD ' + e[5].slice(4) + ' (CBIC Customs Tariff as on 30.06.2025) + ' + rateDesc;
   } else {
     const pct = parseAdvalorem(e[5]);
-    if (e[5] && (pct === null || ((sys === 3 || sys === 4) && /[€£+]|MIN|MAX|GBP/.test(e[5])) || (sys === 5 && /원/.test(e[5])))) mode = 'specific';
+    if (e[5] && (pct === null || ((sys === 3 || sys === 4) && /[€£+]|MIN|MAX|GBP/.test(e[5])) || (sys === 5 && /원/.test(e[5])) || (sys === 12 && /NOK|eller/.test(e[5])))) mode = 'specific';
     else if (pct !== null) mode = sys === 2 ? 'us' : 'adval';
     else mode = 'none';
     rateDesc = e[5] ? ('General duty ' + e[5] + ' (baked official rate)') : '';
@@ -1972,7 +1972,7 @@ function detailHtml(idx) {
     '<div><dt>System</dt><dd>' + esc(SYS[e[0]].name) + '</dd></div>' +
     '<div><dt>Chapter</dt><dd>' + esc(e[4]) + (chTitle ? ' - ' + esc(chTitle) : '') + '</dd></div>' +
     '<div><dt>Level</dt><dd>' + esc(levelName(e[1])) + '</dd></div>' +
-    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + (e[0] === 1 && e[5].indexOf('BCD ') === 0 ? ' <span class="muted">Statutory standard rate, CBIC Customs Tariff First Schedule as on 30.06.2025. Effective rates vary by exemption notification - verify on ICEGATE.</span>' : (e[0] === 3 ? ' <span class="muted">Conventional (MFN) duty, Regulation (EU) 2025/1926 (CN 2026). Tariff quotas, seasonal rates and preferential agreements can lower it - verify in TARIC.</span>' : (e[0] === 4 ? ' <span class="muted">UK third-country (MFN) duty, official UK Global Tariff v4.0.1608. FTA preferences, reliefs and suspensions can lower it - verify on the UK Trade Tariff service.</span>' : (e[0] === 5 ? ' <span class="muted">Korea Customs Service basic rate (기본세율) from the official CLIP tariff rate table, applicable year 2026. Korea FTA rates are usually lower - verify on the KCS CLIP portal.</span>' : (e[0] === 9 ? ' <span class="muted">Mercosur Common External Tariff (TEC) import duty (II), official MDIC consolidated Anexo I of Res. Gecex 272/2021, updated 08-09-2026. BK/BIT ex-tarifario reductions and exception annexes can lower it - verify on Siscomex Classif.</span>' : ''))))) + '</dd></div>' : '') +
+    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + (e[0] === 1 && e[5].indexOf('BCD ') === 0 ? ' <span class="muted">Statutory standard rate, CBIC Customs Tariff First Schedule as on 30.06.2025. Effective rates vary by exemption notification - verify on ICEGATE.</span>' : (e[0] === 3 ? ' <span class="muted">Conventional (MFN) duty, Regulation (EU) 2025/1926 (CN 2026). Tariff quotas, seasonal rates and preferential agreements can lower it - verify in TARIC.</span>' : (e[0] === 4 ? ' <span class="muted">UK third-country (MFN) duty, official UK Global Tariff v4.0.1608. FTA preferences, reliefs and suspensions can lower it - verify on the UK Trade Tariff service.</span>' : (e[0] === 5 ? ' <span class="muted">Korea Customs Service basic rate (기본세율) from the official CLIP tariff rate table, applicable year 2026. Korea FTA rates are usually lower - verify on the KCS CLIP portal.</span>' : (e[0] === 9 ? ' <span class="muted">Mercosur Common External Tariff (TEC) import duty (II), official MDIC consolidated Anexo I of Res. Gecex 272/2021, updated 08-09-2026. BK/BIT ex-tarifario reductions and exception annexes can lower it - verify on Siscomex Classif.</span>' : (e[0] === 12 ? ' <span class="muted">Ordinary customs duty (ordinær toll) from Tolletaten official open data (tollavgiftssats), current 23 Sep 2026. Most industrial goods are duty-free; EFTA/EU and GSP preferential rates are often lower - verify in Tolltariffen.</span>' : '')))))) + '</dd></div>' : '') +
     (e[0] === 1 ? gstRowHtml(e[1]) : '') +
     '</dl>' +
     scometFlagHtml(e);
