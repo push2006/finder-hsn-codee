@@ -35941,7 +35941,12 @@ function paintDetail() {
     V.lcOrigin = lcO.value;
     const so = el('lc-sanc-out'); if (so) so.innerHTML = lcSancLine(lcO.value === '__other' ? '' : lcO.value);
     const pair = LC_ORIGINS.find((o) => o[0] === lcO.value);
-    if (pair) { V.lcCcy = pair[1]; const cs = el('lc-ccy'); if (cs) cs.value = pair[1]; lcFetchFx(pair[1], e); }
+    if (pair) {
+      V.lcCcy = pair[1];
+      const cs = el('lc-ccy'); if (cs) cs.value = pair[1];
+      Array.from(document.querySelectorAll('.lc-clab')).forEach((x) => { x.textContent = pair[1]; });
+      lcFetchFx(pair[1], e);
+    }
   });
   const lcC = el('lc-ccy');
   if (lcC) lcC.addEventListener('change', () => {
