@@ -34374,6 +34374,63 @@ function parseAdvalorem(d) {
   return m ? parseFloat(m[1]) : null;
 }
 function lcMoney(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+// ---- Combined origin + currency landed cost (India imports) ----
+// Origin -> default invoice currency. Currencies without an ECB reference rate fall back to USD with a note.
+const LC_ORIGINS = [
+  ['China', 'CNY'], ['USA', 'USD'], ['UAE', 'AED'], ['Germany', 'EUR'], ['UK', 'GBP'],
+  ['Japan', 'JPY'], ['Korea', 'KRW'], ['Singapore', 'SGD'], ['Hong Kong', 'HKD'], ['Taiwan', 'TWD'],
+  ['Australia', 'AUD'], ['Brazil', 'BRL'], ['Canada', 'CAD'], ['Mexico', 'MXN'], ['South Africa', 'ZAR'],
+  ['Peru', 'PEN'], ['Norway', 'NOK'], ['New Zealand', 'NZD'], ['Israel', 'ILS'], ['Russia', 'USD'],
+  ['Iran', 'USD'], ['Pakistan', 'USD'], ['Bangladesh', 'USD'], ['Sri Lanka', 'USD'], ['Saudi Arabia', 'USD'],
+  ['Indonesia', 'IDR'], ['Vietnam', 'USD'], ['Thailand', 'THB'], ['Malaysia', 'MYR'],
+];
+const LC_NO_ECB = { TWD: 'cbc.gov.tw', PEN: 'bcrp.gob.pe' };
+function lcCcyOpts(sel) {
+  const all = ['INR', 'USD', 'EUR', 'GBP', 'CNY', 'JPY', 'KRW', 'SGD', 'AED', 'AUD', 'CAD', 'CHF', 'HKD', 'ZAR', 'BRL', 'MXN', 'NZD', 'NOK', 'ILS', 'MYR', 'THB', 'IDR', 'PHP', 'TRY', 'PLN', 'CZK', 'HUF', 'RON', 'SEK', 'DKK', 'ISK', 'TWD', 'PEN'];
+  return all.map((c) => '<option value="' + c + '"' + (c === sel ? ' selected' : '') + '>' + c + '</option>').join('');
+}
+function lcSancLine(country) {
+  if (!country) return '';
+  const z = SANC_ZONES[country];
+  if (!z) return '<div class="sanc-card sanc-green"><strong>' + esc(country) + ': green zone</strong> - no standing country-level sanctions in the baked snapshot; counterparty screening still applies.</div>';
+  const cls = z[0] === 1 ? 'sanc-red' : 'sanc-amber';
+  const label = z[0] === 1 ? 'RED zone - treat as blocked' : 'AMBER zone - targeted sanctions';
+  return '<div class="sanc-card ' + cls + '"><strong>' + esc(country) + ': ' + label + '</strong><p>' + esc(z[1]) + (z[3] ? ' <strong>India angle:</strong> ' + esc(z[3]) : '') + '</p></div>';
+}
+function lcFetchFx(ccy, e) {
+  if (ccy === 'INR') { V.lcFx = V.lcFx || {}; V.lcFx.INR = { rate: 1, date: '' }; paintLanded(e); return; }
+  V.lcFx = V.lcFx || {};
+  if (V.lcFx[ccy] || V.lcFxBusy === ccy) { paintLanded(e); return; }
+  if (LC_NO_ECB[ccy]) { paintLanded(e); return; }
+  V.lcFxBusy = ccy;
+  paintLanded(e);
+  const done = (rate, date, via) => { V.lcFx[ccy] = { rate: rate, date: date, via: via || '' }; V.lcFxBusy = null; paintLanded(e); };
+  const fail = () => { V.lcFx[ccy] = { err: true }; V.lcFxBusy = null; paintLanded(e); };
+  if (ccy === 'AED') {
+    fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=INR').then((r) => r.json()).then((j) => {
+      const v = j && j.rates && (j.rates.INR || (j.rates[Object.keys(j.rates).sort().pop()] || {}).INR);
+      if (v) done(v / 3.6725, j.date || '', ' via the USD peg 3.6725'); else fail();
+    }).catch(fail);
+    return;
+  }
+  fetch('https://api.frankfurter.dev/v1/latest?from=' + ccy + '&to=INR')
+    .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+    .then((j) => {
+      const v = j && j.rates && (j.rates.INR || (j.rates[Object.keys(j.rates).sort().pop()] || {}).INR);
+      if (v) done(v, j.date || ''); else fail();
+    }).catch(fail);
+}
+function lcFxState() {
+  const ccy = (el('lc-ccy') || {}).value || 'USD';
+  const manual = parseFloat(((el('lc-rate') || {}).value || '').replace(/,/g, ''));
+  if (isFinite(manual) && manual > 0) return { ccy: ccy, rate: manual, manual: true };
+  const f = (V.lcFx || {})[ccy];
+  if (f && f.rate) return { ccy: ccy, rate: f.rate, date: f.date, via: f.via };
+  if (f && f.err) return { ccy: ccy, err: true };
+  if (LC_NO_ECB[ccy]) return { ccy: ccy, noecb: true };
+  return { ccy: ccy, loading: true };
+}
+
 function landedCostHtml(e) {
   const sys = e[0];
   let mode, rateDesc = '';
@@ -34395,10 +34452,20 @@ function landedCostHtml(e) {
   if (mode === 'specific') {
     return '<div class="detail-sec no-print lc-panel"><h3>Landed cost estimate</h3><p class="muted">This line carries a specific duty rate (' + esc(e[5]) + ') - the duty depends on the shipped quantity and unit, which this page does not know. Any total here would mislead; use the official tariff calculator linked at the bottom of this page.</p></div>';
   }
-  let inputs = '<div class="lc-inputs">' +
-    '<label class="sfield"><span class="slabel">Goods value (USD)</span><input id="lc-goods" inputmode="decimal" placeholder="10000" autocomplete="off"></label>' +
-    '<label class="sfield"><span class="slabel">Freight (USD)</span><input id="lc-freight" inputmode="decimal" placeholder="800" autocomplete="off"></label>' +
-    '<label class="sfield"><span class="slabel">Insurance (USD)</span><input id="lc-ins" inputmode="decimal" placeholder="0" autocomplete="off"></label>';
+
+  let originBar = '';
+  if (mode === 'in') {
+    originBar = '<div class="lc-originbar">' +
+      '<label class="sfield"><span class="slabel">Shipping from (origin country)</span><select id="lc-origin" class="sanc-pick"><option value="">Pick origin country</option>' + LC_ORIGINS.map((o) => '<option value="' + esc(o[0]) + '"' + (V.lcOrigin === o[0] ? ' selected' : '') + '>' + esc(o[0]) + '</option>').join('') + '<option value="__other"' + (V.lcOrigin === '__other' ? ' selected' : '') + '>Any other country</option></select></label>' +
+      '<label class="sfield"><span class="slabel">Invoice currency</span><select id="lc-ccy" class="sanc-pick">' + lcCcyOpts(V.lcCcy || 'USD') + '</select></label></div>' +
+      '<div id="lc-sanc-out">' + lcSancLine(V.lcOrigin) + '</div>';
+  }
+  const cl = mode === 'in' ? '<span class="lc-clab">' + esc(V.lcCcy || 'USD') + '</span>' : 'USD';
+  let inputs = originBar + '<div class="lc-inputs">' +
+    '<label class="sfield"><span class="slabel">Goods value (' + cl + ')</span><input id="lc-goods" inputmode="decimal" placeholder="10000" autocomplete="off"></label>' +
+    '<label class="sfield"><span class="slabel">Freight (' + cl + ')</span><input id="lc-freight" inputmode="decimal" placeholder="800" autocomplete="off"></label>' +
+    '<label class="sfield"><span class="slabel">Insurance (' + cl + ')</span><input id="lc-ins" inputmode="decimal" placeholder="0" autocomplete="off"></label>' +
+    (mode === 'in' ? '<label class="sfield"><span class="slabel">Rate override: 1 ' + cl + ' = ? INR (optional)</span><input id="lc-rate" inputmode="decimal" placeholder="auto from ECB" autocomplete="off"></label>' : '');
   if (mode === 'in') { const bcdRaw = e[5] && e[5].indexOf('BCD ') === 0 ? e[5].slice(4).trim() : null; const bcdBaked = bcdRaw !== null && (/^\d+(\.\d+)?\s*%$/.test(bcdRaw) || /^free$/i.test(bcdRaw)) ? parseAdvalorem(bcdRaw) : null; inputs += '<label class="sfield"><span class="slabel">BCD % (basic customs duty)</span><input id="lc-bcd" inputmode="decimal" placeholder="e.g. 10 - check ICEGATE" autocomplete="off"' + (bcdBaked !== null ? ' value="' + bcdBaked + '"' : '') + '></label>'; }
   inputs += '</div>';
   const srcNote = mode === 'in'
@@ -34406,8 +34473,8 @@ function landedCostHtml(e) {
     : mode === 'us'
       ? 'Duty = baked general (MFN) rate from the official USITC HTS on the entered (CIF) value. Merchandise processing fee 0.3464% ad valorem (yearly min/max caps not applied) and harbor maintenance fee 0.125% (ocean freight only) are official CBP fees. State and local taxes, broker and port fees not included. Estimate only - verify before filing.'
       : 'Duty = baked general (MFN) rate from this system\'s official tariff on the CIF value. Destination VAT/GST and port fees are not baked for this system - check its official portal below. Estimate only - verify before filing.';
-  return '<div class="detail-sec no-print lc-panel"><h3>Landed cost estimate</h3>' +
-    '<p class="muted">' + esc(rateDesc) + '. Type your shipment values - the full duty and tax cascade computes on this page; nothing is sent anywhere.</p>' +
+  return '<div class="detail-sec no-print lc-panel"><h3>' + (mode === 'in' ? 'Landed cost from any country - currency, sanctions, duty in one view' : 'Landed cost estimate') + '</h3>' +
+    '<p class="muted">' + esc(rateDesc) + (mode === 'in' ? '. Pick the origin country and invoice currency - values convert to INR at the live ECB reference rate, the sanctions verdict shows above, and the full duty and tax cascade computes here' : '. Type your shipment values - the full duty and tax cascade computes on this page') + '; nothing is sent anywhere.</p>' +
     inputs + '<div id="lc-out"></div>' +
     '<p class="muted lc-src">' + esc(srcNote) + '</p></div>';
 }
@@ -34416,8 +34483,22 @@ function paintLanded(e) {
   const num = (id) => { const x = el(id); if (!x) return 0; const v = parseFloat(String(x.value).replace(/,/g, '')); return isFinite(v) && v > 0 ? v : 0; };
   const goods = num('lc-goods'), fr = num('lc-freight'), ins = num('lc-ins');
   if (!goods) { out.innerHTML = '<p class="muted">Enter the goods value to see the breakdown.</p>'; return; }
-  const cif = goods + fr + ins;
-  const rows = [['Assessable value (CIF = goods + freight + insurance)', cif]];
+  let cur = 'USD';
+  let cif = goods + fr + ins;
+  let rows = [['Assessable value (CIF = goods + freight + insurance)', cif]];
+  if (e[0] === 1) {
+    const fx = lcFxState();
+    if (fx.loading) { out.innerHTML = '<p class="muted">Loading the live ECB rate for ' + esc(fx.ccy) + '...</p>'; return; }
+    if (fx.err) { out.innerHTML = '<p class="muted">Could not load the live ' + esc(fx.ccy) + ' rate - type it in the rate override field (1 ' + esc(fx.ccy) + ' = ? INR).</p>'; return; }
+    if (fx.noecb) { out.innerHTML = '<p class="muted">No ECB reference rate for ' + esc(fx.ccy) + ' - get it from ' + esc(LC_NO_ECB[fx.ccy]) + ' and type it in the rate override field.</p>'; return; }
+    cur = 'INR';
+    cif = (goods + fr + ins) * fx.rate;
+    rows = [
+      ['Invoice total: ' + lcMoney(goods + fr + ins) + ' ' + fx.ccy, null],
+      ['Rate: 1 ' + fx.ccy + ' = ' + fx.rate.toFixed(4) + ' INR' + (fx.manual ? ' (your override)' : ' (live ECB reference' + (fx.date ? ', ' + fx.date : '') + (fx.via || '') + ')'), null],
+      ['Assessable value (CIF) in INR', cif],
+    ];
+  }
   let total = cif, note = '';
   if (e[0] === 1) {
     const g = gstFor(e[1]);
@@ -34448,8 +34529,10 @@ function paintLanded(e) {
     total = cif + duty;
   }
   rows.push(['Estimated landed cost', total]);
-  const pctOver = (total - goods) / goods * 100;
-  let h = '<table class="lc-table"><tbody>' + rows.map((r, i) => '<tr' + (i === rows.length - 1 ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + lcMoney(r[1]) + ' USD</td></tr>').join('') +
+  let pctBase = goods;
+  if (e[0] === 1) { const fx2 = lcFxState(); pctBase = goods * (fx2.rate || 1); }
+  const pctOver = (total - pctBase) / pctBase * 100;
+  let h = '<table class="lc-table"><tbody>' + rows.map((r, i) => r[1] === null ? '<tr><td colspan="2" class="muted">' + esc(r[0]) + '</td></tr>' : '<tr' + (i === rows.length - 1 ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + lcMoney(r[1]) + ' ' + cur + '</td></tr>').join('') +
     '<tr><td>Duty + tax over goods value</td><td>' + pctOver.toFixed(1) + '%</td></tr></tbody></table>';
   if (note) h += '<p class="muted">' + esc(note) + '</p>';
   out.innerHTML = h;
@@ -35853,6 +35936,22 @@ function paintDetail() {
   }
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
+  const lcO = el('lc-origin');
+  if (lcO) lcO.addEventListener('change', () => {
+    V.lcOrigin = lcO.value;
+    const so = el('lc-sanc-out'); if (so) so.innerHTML = lcSancLine(lcO.value === '__other' ? '' : lcO.value);
+    const pair = LC_ORIGINS.find((o) => o[0] === lcO.value);
+    if (pair) { V.lcCcy = pair[1]; const cs = el('lc-ccy'); if (cs) cs.value = pair[1]; lcFetchFx(pair[1], e); }
+  });
+  const lcC = el('lc-ccy');
+  if (lcC) lcC.addEventListener('change', () => {
+    V.lcCcy = lcC.value;
+    Array.from(document.querySelectorAll('.lc-clab')).forEach((x) => { x.textContent = lcC.value; });
+    lcFetchFx(lcC.value, e); paintLanded(e);
+  });
+  const lcR = el('lc-rate');
+  if (lcR) lcR.addEventListener('input', () => paintLanded(e));
+  if (el('lc-ccy') && V.lcCcy) lcFetchFx(V.lcCcy, e);
   const routeP = el('route-pick');
   if (routeP) routeP.addEventListener('change', () => { routeRiskRender(routeP.value); });
   const originP = el('origin-pick');
