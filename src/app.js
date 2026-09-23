@@ -23,7 +23,7 @@ import { SANCTIONS, SANCTIONS_META } from './sanctions';
 const OWNER = 'Push';
 const SYS = [
   { tag: 'HS', name: 'WCO HS 2022 (international)', src: 'UN Comtrade extraction of the WCO HS 2022 nomenclature', url: 'https://comtrade.un.org/data/doc/api/' },
-  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
+  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025, and basic customs duty (BCD) standard rates from the CBIC Customs Tariff First Schedule as on 30.06.2025 (11,387 lines; statutory rates - effective rates vary by exemption notification)', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
   { tag: 'US', name: 'US HTS (Harmonized Tariff Schedule)', src: 'USITC official HTS export, includes general duty rates', url: 'https://hts.usitc.gov/' },
   { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Publications Office of the EU, official CN 2026 dataset', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
   { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Department for Business and Trade official 2026 commodity report', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.200/metadata?format=html' },
@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen16';
+const DATA_BUILD = '2026-09-23-gen17';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -749,6 +749,7 @@ function landedCostHtml(e) {
     const g = gstFor(e[1]);
     mode = 'in';
     rateDesc = g ? ('IGST ' + g[0] + ' from the baked GST 2.0 schedule') : 'IGST rate not found in the baked GST schedule';
+    if (e[5] && e[5].indexOf('BCD ') === 0) rateDesc = 'BCD ' + e[5].slice(4) + ' (CBIC Customs Tariff as on 30.06.2025) + ' + rateDesc;
   } else {
     const pct = parseAdvalorem(e[5]);
     if (e[5] && pct === null) mode = 'specific';
@@ -766,10 +767,10 @@ function landedCostHtml(e) {
     '<label class="sfield"><span class="slabel">Goods value (USD)</span><input id="lc-goods" inputmode="decimal" placeholder="10000" autocomplete="off"></label>' +
     '<label class="sfield"><span class="slabel">Freight (USD)</span><input id="lc-freight" inputmode="decimal" placeholder="800" autocomplete="off"></label>' +
     '<label class="sfield"><span class="slabel">Insurance (USD)</span><input id="lc-ins" inputmode="decimal" placeholder="0" autocomplete="off"></label>';
-  if (mode === 'in') inputs += '<label class="sfield"><span class="slabel">BCD % (basic customs duty)</span><input id="lc-bcd" inputmode="decimal" placeholder="e.g. 10 - check ICEGATE" autocomplete="off"></label>';
+  if (mode === 'in') { const bcdRaw = e[5] && e[5].indexOf('BCD ') === 0 ? e[5].slice(4).trim() : null; const bcdBaked = bcdRaw !== null && (/^\d+(\.\d+)?\s*%$/.test(bcdRaw) || /^free$/i.test(bcdRaw)) ? parseAdvalorem(bcdRaw) : null; inputs += '<label class="sfield"><span class="slabel">BCD % (basic customs duty)</span><input id="lc-bcd" inputmode="decimal" placeholder="e.g. 10 - check ICEGATE" autocomplete="off"' + (bcdBaked !== null ? ' value="' + bcdBaked + '"' : '') + '></label>'; }
   inputs += '</div>';
   const srcNote = mode === 'in'
-    ? 'IGST rate from the baked GST 2.0 schedule (Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025). BCD is your input - it varies by line and changes; verify on the ICEGATE duty calculator. Social welfare surcharge = 10% of BCD (official rule). Excludes port, handling and other fees. Estimate only - verify before filing.'
+    ? 'IGST rate from the baked GST 2.0 schedule (Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025). ' + (e[5] && e[5].indexOf('BCD ') === 0 ? 'BCD is prefilled from the CBIC Customs Tariff First Schedule as on 30.06.2025 (statutory standard rate) - effective rates vary by exemption notification, so check and edit before relying on the total; verify on the ICEGATE duty calculator.' : 'BCD is your input - it varies by line and changes; verify on the ICEGATE duty calculator.') + ' Social welfare surcharge = 10% of BCD (official rule). Excludes port, handling and other fees. Estimate only - verify before filing.'
     : mode === 'us'
       ? 'Duty = baked general (MFN) rate from the official USITC HTS on the entered (CIF) value. Merchandise processing fee 0.3464% ad valorem (yearly min/max caps not applied) and harbor maintenance fee 0.125% (ocean freight only) are official CBP fees. State and local taxes, broker and port fees not included. Estimate only - verify before filing.'
       : 'Duty = baked general (MFN) rate from this system\'s official tariff on the CIF value. Destination VAT/GST and port fees are not baked for this system - check its official portal below. Estimate only - verify before filing.';
@@ -792,7 +793,7 @@ function paintLanded(e) {
     const bcdPct = num('lc-bcd');
     const bcd = cif * bcdPct / 100;
     const sws = bcd * 0.10;
-    rows.push(['Basic customs duty (BCD ' + bcdPct + '% - your input)', bcd]);
+    rows.push(['Basic customs duty (BCD ' + bcdPct + '%)', bcd]);
     rows.push(['Social welfare surcharge (10% of BCD)', sws]);
     if (igst !== null) {
       const igstAmt = (cif + bcd + sws) * igst / 100;
@@ -1971,7 +1972,7 @@ function detailHtml(idx) {
     '<div><dt>System</dt><dd>' + esc(SYS[e[0]].name) + '</dd></div>' +
     '<div><dt>Chapter</dt><dd>' + esc(e[4]) + (chTitle ? ' - ' + esc(chTitle) : '') + '</dd></div>' +
     '<div><dt>Level</dt><dd>' + esc(levelName(e[1])) + '</dd></div>' +
-    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + '</dd></div>' : '') +
+    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + (e[0] === 1 && e[5].indexOf('BCD ') === 0 ? ' <span class="muted">Statutory standard rate, CBIC Customs Tariff First Schedule as on 30.06.2025. Effective rates vary by exemption notification - verify on ICEGATE.</span>' : '') + '</dd></div>' : '') +
     (e[0] === 1 ? gstRowHtml(e[1]) : '') +
     '</dl>' +
     scometFlagHtml(e);
