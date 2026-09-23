@@ -1157,12 +1157,17 @@ function portalRowHtml(sys) {
 }
 
 const SYS_CCY = [null, 'INR', 'USD', 'EUR', 'GBP', 'KRW', 'CAD', 'JPY', 'AUD', 'BRL', 'TWD', 'NZD', 'NOK', 'SGD', 'ILS', 'MXN'];
+SYS_CCY[16] = 'HKD'; SYS_CCY[17] = 'ZAR'; SYS_CCY[18] = 'PEN'; SYS_CCY[19] = 'INR';
 SYS_CCY[20] = 'CNY';
 SYS_CCY[21] = 'AED';
+// ECB reference rates (Frankfurter) do not publish TWD or PEN - show an honest pointer instead of a dead card.
+const CCY_NO_ECB = { TWD: 'the Central Bank of the Republic of China (Taiwan) at cbc.gov.tw', PEN: 'the Banco Central de Reserva del Peru at bcrp.gob.pe' };
 
 function currencySlotHtml(sys) {
   const ccy = SYS_CCY[sys];
   if (!ccy || ccy === 'USD') return '';
+  if (ccy === 'AED') return '<div class="detail-sec ccy-card" id="ccy-card"><h3>Currency trend - AED vs USD</h3><p><strong>No trend to track:</strong> the UAE central bank pegs the dirham at 1 USD = 3.6725 AED, so it moves exactly with the US dollar. For AED costs, watch the USD row in the trade currencies panel.</p></div>';
+  if (CCY_NO_ECB[ccy]) return '<div class="detail-sec ccy-card" id="ccy-card"><h3>Currency trend - ' + ccy + ' vs USD</h3><p>The ECB reference rates this app uses do not publish ' + ccy + ', so no live trend is shown here - check ' + CCY_NO_ECB[ccy] + ' for the official rate. (Honest gap, not an error.)</p></div>';
   const info = V.ccy[sys];
   if (!info) return '<div class="detail-sec ccy-card" id="ccy-card"><h3>Currency trend - ' + ccy + ' vs USD</h3><p class="muted">Loading live rates...</p></div>';
   if (info === 'err') return '';
@@ -1176,7 +1181,7 @@ function currencySlotHtml(sys) {
 }
 function fetchCurrency(sys, onDone) {
   const ccy = SYS_CCY[sys];
-  if (!ccy || ccy === 'USD') return;
+  if (!ccy || ccy === 'USD' || ccy === 'AED' || CCY_NO_ECB[ccy]) return;
   if (V.ccy[sys]) { onDone(); return; }
   if (typeof fetch !== 'function') { V.ccy[sys] = 'err'; onDone(); return; }
   const now = new Date();
@@ -2632,7 +2637,7 @@ function searchIdleHtml() {
     (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide trade currencies' : 'Trade currencies - INR vs USD, EUR, GBP, AED and 8 more (live)') + '</button></p>' +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide trade currencies' : 'Trade currencies - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' +
     (V.tcur ? '<div id="tcur-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
@@ -2738,6 +2743,11 @@ const TCUR_LIST = [
   ['USD', 'US dollar'], ['EUR', 'Euro'], ['GBP', 'British pound'], ['CNY', 'Chinese yuan'],
   ['JPY', 'Japanese yen'], ['AED', 'UAE dirham'], ['KRW', 'South Korean won'], ['SGD', 'Singapore dollar'],
   ['AUD', 'Australian dollar'], ['CAD', 'Canadian dollar'], ['CHF', 'Swiss franc'], ['HKD', 'Hong Kong dollar'],
+  ['ZAR', 'South African rand'], ['BRL', 'Brazilian real'], ['MXN', 'Mexican peso'],
+  ['NZD', 'New Zealand dollar'], ['NOK', 'Norwegian krone'], ['ILS', 'Israeli shekel'], ['MYR', 'Malaysian ringgit'],
+  ['THB', 'Thai baht'], ['IDR', 'Indonesian rupiah'], ['PHP', 'Philippine peso'], ['TRY', 'Turkish lira'],
+  ['PLN', 'Polish zloty'], ['CZK', 'Czech koruna'], ['HUF', 'Hungarian forint'], ['RON', 'Romanian leu'],
+  ['SEK', 'Swedish krona'], ['DKK', 'Danish krone'], ['ISK', 'Icelandic krona'],
 ];
 const AED_PEG = 3.6725; // UAE central bank peg: 1 USD = 3.6725 AED, so the dirham row derives from the live USD rate
 function tcurLoad() {
@@ -2804,7 +2814,7 @@ function paintTcur() {
     '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Currency</th><th>Today (1 unit = INR)</th><th>30 days</th><th>1 year</th></tr></thead><tbody>' +
     d.rows.map((r) => '<tr><td><strong>' + r.ccy + '</strong> ' + esc(r.name) + '</td><td>' + fmtR(r.cur) + '</td><td>' + cell(r.p30) + '</td><td>' + cell(r.p365) + '</td></tr>').join('') +
     '</tbody></table></div>' +
-    '<p class="muted">Positive % = that currency costs more rupees than before (the rupee weakened against it) - goods priced in it are getting costlier. The UAE dirham row derives from the live US dollar rate: the UAE central bank pegs 1 USD = 3.6725 AED, so the dirham moves exactly with the dollar.</p>' +
+    '<p class="muted">Positive % = that currency costs more rupees than before (the rupee weakened against it) - goods priced in it are getting costlier. The UAE dirham row derives from the live US dollar rate: the UAE central bank pegs 1 USD = 3.6725 AED, so the dirham moves exactly with the dollar. Taiwan dollar (TWD) and Peruvian sol (PEN) have no ECB reference rate, so they are not listed - check their central banks (cbc.gov.tw, bcrp.gob.pe). This covers every ECB-published trade currency: the 22 app countries plus the rest of the ECB list.</p>' +
     '<p class="muted">Live ECB reference rates via the free Frankfurter API, fetched in your browser when you open this panel - not baked into the dataset. Indicative, not settlement rates.</p></div>';
 }
 
