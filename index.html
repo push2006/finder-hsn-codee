@@ -33629,7 +33629,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen24';
+const DATA_BUILD = '2026-09-23-gen25';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -33645,10 +33645,10 @@ let groqModelUsed = '';
 // also rate-limits per IP.
 const AI_PROXY_URL = 'https://hsn-ai-proxy.onrender.com';
 const AI_PROXY_TOKEN = '648772556a62e577d379272febf550b9e28c5723'; // must match APP_SECRET on the proxy service
-// Live ship positions near India ports: same proxy pattern - ais-proxy.js holds
-// the AISStream key server-side; browsers only ever call this URL with the
-// same speed-bump token. The service name must stay hsn-ais-proxy.
-const AIS_PROXY_URL = 'https://hsn-ais-proxy.onrender.com';
+// Live ship positions near India ports: served by the SAME hsn-ai-proxy
+// service (proxy.js) - it holds the AISStream key server-side alongside the AI
+// provider keys; browsers only ever call it with the same speed-bump token.
+const AIS_PROXY_URL = 'https://hsn-ai-proxy.onrender.com';
 // Built-in shared keys (optional second choice): paste your own free keys here
 // to give every visitor AI without a worker. WARNING: anyone can read these in
 // the page source and bots scan public repos - a shared key can be stolen and
