@@ -1624,6 +1624,58 @@ function portCommPanelHtml() {
     '<p class="muted">' + esc(PORT_COMM_SRC) + '</p></div>';
 }
 
+
+// Live port weather via Open-Meteo (user-approved, free, no key, CORS open). NOT a government source - IMD pointer baked.
+const PORT_GEO = [["Kolkata (SMPA Kolkata Dock System)",22.5490,88.3100],["Haldia (SMPA Haldia Dock Complex)",22.0333,88.0667],["Paradip",20.2650,86.6700],["Visakhapatnam",17.6868,83.2185],["Kamarajar (Ennore)",13.2530,80.3450],["Chennai",13.0978,80.2942],["V.O. Chidambaranar (Tuticorin)",8.7642,78.2200],["Cochin",9.9667,76.2667],["New Mangalore",12.9612,74.8033],["Mormugao",15.4097,73.8010],["Jawaharlal Nehru (JNPA)",18.9490,72.9525],["Mumbai",18.9388,72.8355],["Deendayal (Kandla)",23.0225,70.2167]];
+const PORT_WX_SRC = "Live weather from Open-Meteo (free weather API, no key - NOT a government source). Wave values come from the nearest sea grid point of the marine model. For official cyclone and port warnings use IMD (mausam.imd.gov.in) and the port authority.";
+function wxCompass(deg) { const pts = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return pts[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]; }
+function wxKm(lat1, lon1, lat2, lon2) { const dx = (lon2 - lon1) * 111.32 * Math.cos((lat1 + lat2) / 2 * Math.PI / 180), dy = (lat2 - lat1) * 110.57; return Math.sqrt(dx * dx + dy * dy); }
+function portWxPanelHtml() {
+  const sel = V.portWx || 'Jawaharlal Nehru (JNPA)';
+  let body = '';
+  if (V.portWxBusy) body = '<p class="muted">Loading live weather...</p>';
+  else if (V.portWxErr) body = '<p class="muted">Live weather unavailable right now - try again shortly.</p>';
+  else if (V.portWxData) {
+    const d = V.portWxData;
+    let rows = '';
+    if (d.temp != null) rows += '<tr><td>Temperature</td><td>' + d.temp.toFixed(1) + ' &deg;C</td></tr>';
+    if (d.wind != null) rows += '<tr><td>Wind</td><td>' + Math.round(d.wind) + ' km/h from ' + wxCompass(d.windDir) + '</td></tr>';
+    if (d.wave != null) rows += '<tr><td>Wave height</td><td>' + d.wave.toFixed(1) + ' m, ' + wxCompass(d.waveDir) + ', period ' + (d.wavePer != null ? d.wavePer.toFixed(0) + ' s' : '-') + '</td></tr>';
+    else if (d.noWave) rows += '<tr><td>Wave height</td><td>Not available - riverine/inland port</td></tr>';
+    if (d.swell != null) rows += '<tr><td>Swell</td><td>' + d.swell.toFixed(1) + ' m</td></tr>';
+    body = '<div class="report-table-wrap"><table class="report-table"><tbody>' + rows + '</tbody></table></div>' +
+      (d.seaKm > 50 ? '<p class="muted">Riverine port - wave data is for the nearest sea grid point about ' + Math.round(d.seaKm) + ' km away.</p>' : '') +
+      (d.at ? '<p class="muted">Data time: ' + esc(d.at) + ' IST</p>' : '');
+  } else body = '<p class="muted">Pick a port for live weather.</p>';
+  return '<div class="about-box"><h3>Port weather - live</h3>' +
+    '<select class="sanc-pick" id="portwx-pick">' + PORT_GEO.map((g) => '<option value="' + esc(g[0]) + '"' + (g[0] === sel ? ' selected' : '') + '>' + esc(g[0]) + '</option>').join('') + '</select>' +
+    body +
+    '<p class="muted">' + esc(PORT_WX_SRC) + '</p></div>';
+}
+function loadPortWx() {
+  const sel = (el('portwx-pick') || {}).value || V.portWx || 'Jawaharlal Nehru (JNPA)';
+  V.portWx = sel;
+  const g = PORT_GEO.find((x) => x[0] === sel);
+  if (!g) return;
+  V.portWxBusy = true; V.portWxErr = false; V.portWxData = null; paintIdle();
+  const q = 'latitude=' + g[1] + '&longitude=' + g[2] + '&timezone=Asia%2FKolkata';
+  Promise.all([
+    fetch('https://api.open-meteo.com/v1/forecast?' + q + '&current=temperature_2m,wind_speed_10m,wind_direction_10m').then((r) => { if (!r.ok) throw new Error('http'); return r.json(); }),
+    fetch('https://marine-api.open-meteo.com/v1/marine?' + q + '&current=wave_height,wave_direction,wave_period,swell_wave_height').then((r) => { if (!r.ok) throw new Error('http'); return r.json(); }).catch(() => null)
+  ]).then((rs) => {
+    const fc = rs[0] && rs[0].current, mr = rs[1] && rs[1].current;
+    if (!fc) throw new Error('nodata');
+    V.portWxData = {
+      temp: fc.temperature_2m, wind: fc.wind_speed_10m, windDir: fc.wind_direction_10m,
+      wave: mr ? mr.wave_height : null, waveDir: mr ? mr.wave_direction : null, wavePer: mr ? mr.wave_period : null, swell: mr ? mr.swell_wave_height : null,
+      noWave: !!(mr && mr.wave_height == null),
+      seaKm: rs[1] ? wxKm(g[1], g[2], rs[1].latitude, rs[1].longitude) : 0,
+      at: String(fc.time || '').replace('T', ' ')
+    };
+    V.portWxBusy = false; paintIdle();
+  }).catch(() => { V.portWxBusy = false; V.portWxErr = true; paintIdle(); });
+}
+
 function addHtml(code, desc) {
   const digs = String(code || '').replace(/\D/g, '');
   if (!digs) return '';
@@ -2787,6 +2839,8 @@ function searchIdleHtml() {
     (V.payc ? paycPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port-wise trade' : 'Port-wise import & export by commodity - 13 major ports (official)') + '</button></p>' +
     (V.portCommOpen ? portCommPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="portwx-toggle">' + (V.portWxOpen ? 'Hide port weather' : 'Port weather - 13 major ports (live)') + '</button></p>' +
+    (V.portWxOpen ? portWxPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -3045,6 +3099,10 @@ function paintIdle() {
   if (pco) pco.addEventListener('click', () => { V.portCommOpen = !V.portCommOpen; paintIdle(); });
   const pcp = el('portcomm-pick');
   if (pcp) pcp.addEventListener('change', () => { V.portComm = pcp.value; paintIdle(); });
+  const pwx = el('portwx-toggle');
+  if (pwx) pwx.addEventListener('click', () => { V.portWxOpen = !V.portWxOpen; paintIdle(); if (V.portWxOpen && !V.portWxData && !V.portWxBusy) loadPortWx(); });
+  const pwp = el('portwx-pick');
+  if (pwp) pwp.addEventListener('change', () => { loadPortWx(); });
   const rt = el('rev-toggle');
   if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
   const runRev = () => {
