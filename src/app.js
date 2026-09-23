@@ -2205,9 +2205,10 @@ function classifyResHtml() {
   if (V.clsHits) {
     return '<ul class="result-list">' + V.clsHits.map((h) => {
       const code = String(h.code);
-      const rows = clsRowsFor(code);
+      const deep = clsDeep(code);
+      const rows = deep[0];
       return '<li><div class="classify-why"><strong>HS ' + esc(code.replace(/(\d{4})(\d{2})/, '$1.$2')) + '</strong> - ' + esc(h.why) + '</div>' +
-        (rows.length ? rows.map((i) => { const e = db.entries[i]; return '<button class="result-link linkbtn-block" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button>'; }).join('') : '<span class="muted">No matching line in this dataset - try the code search.</span>') +
+        (rows.length ? rows.map((i) => { const e = db.entries[i]; return '<button class="result-link linkbtn-block" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span></button>'; }).join('') + (deep[1] > rows.length ? '<span class="muted">+' + (deep[1] - rows.length) + ' more lines under this code in the ' + esc(SYS[V.sysFilter].tag) + ' system - open any row for the full family.</span>' : '') : '<span class="muted">No matching line in this dataset - try the code search.</span>') +
         '</li>';
     }).join('') + '</ul>' +
     (V.clsCross ? '<p class="muted">' + (V.clsCross.agree
@@ -2232,6 +2233,22 @@ function clsRowsFor(code) {
     for (const i of arr) { if (db.entries[i][1].startsWith(code)) return [i]; }
   }
   return [];
+}
+/* Product picks must land on the deepest NATIONAL line of the selected system (8/10-digit), not the generic HS 6-digit family row. Falls back to the HS row when that system has no line under the code. */
+function clsDeep(code) {
+  const db = S.db;
+  if (V.sysFilter > 0) {
+    const arr = db.sorted[V.sysFilter] || [];
+    const under = [];
+    for (const i of arr) { if (db.entries[i][1].startsWith(code)) under.push(i); }
+    if (under.length) {
+      const leaves = under.filter((i) => !(db.children.get(i) || []).length);
+      const pick = leaves.length ? leaves : under;
+      return [pick.slice(0, 6), pick.length];
+    }
+  }
+  const rows = clsRowsFor(code);
+  return [rows, rows.length];
 }
 async function classifyRun() {
   const text = V.q.trim();
@@ -2277,6 +2294,7 @@ async function classifyRun() {
       }
       V.clsBusy = false;
       paintClassify();
+      paintResults();
       return;
     } catch (e) {
       V.clsErr = 'AI suggestion failed (' + String(e.message).slice(0, 80) + ') - showing offline text matches instead.';
@@ -2296,6 +2314,7 @@ async function classifyRun() {
   V.clsOffline = groupFamilies(S.db, r.out).slice(0, 10);
   V.clsBusy = false;
   paintClassify();
+  paintResults();
 }
 function paintClassify() {
   const slot = el('cls-slot');
@@ -2505,7 +2524,7 @@ function paintResults() {
     };
     s += '<ul class="result-list no-print">' + exact.map((i) => row(i, true)).join('') + shown.map((i) => row(i, false)).join('') + '</ul>';
   } else {
-    s = '<p class="muted">No matches. Try fewer words or a shorter code prefix.</p>';
+    s = (V.clsHits && V.clsHits.length) || (V.clsOffline && V.clsOffline.length) ? '' : '<p class="muted">No matches. Try fewer words or a shorter code prefix.</p>';
   }
   slot.innerHTML = s;
   bindOpens(slot);
