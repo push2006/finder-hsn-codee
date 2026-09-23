@@ -35005,6 +35005,66 @@ function sancRender(country) {
     (z[3] ? '<p><strong>India angle:</strong> ' + esc(z[3]) + '</p>' : '') + '</div>';
 }
 
+
+// ---- Route safety (IMB piracy & armed robbery corridors) ----
+// Rows: [corridor, level 0 ok / 1 caution / 2 high risk, IMB-worded label,
+//        counts [2021,2022,2023,2024,2025] or null, guidance]
+// Counts from IMB Table 1 (annual report Jan-Dec 2025); Gulf of Guinea row is
+// the sum of its West African coastal-state rows, marked as such in the note.
+const ROUTE_RISK = [
+  ["Singapore Strait", 2, "Highly risky - incidents tripled in 2025", [35, 38, 37, 43, 80],
+   "Robbers board ships underway and at anchor, mostly at night; the IMB General Warning issued in December 2019 is still in force. Keep a strict anti-robbery watch, sound the alarm and report immediately to the littoral authorities and the IMB Piracy Reporting Centre. After the 2025 surge the Indonesian Marine Police reinforced patrols in the straits and detained two gangs."],
+  ["Gulf of Aden / Red Sea / Bab el-Mandeb", 2, "Conflict-zone warning - drones and missiles off Yemen", [1, 0, 0, 1, 0],
+   "The incident counts here are Somali-piracy events only. Separately, the IMB warns of non-piracy targeting of merchant vessels in these waters with drones and missiles. Register and report per the latest BMP (MSCHOA / UKMTO) before transiting, and follow coalition navy routing guidance."],
+  ["Off Somalia / Arabian Sea / wider Indian Ocean", 2, "Somali piracy active - hijackings in 2025", [0, 0, 1, 7, 5],
+   "In 2025 three vessels were hijacked, one boarded and one fired upon off Somalia; the IMB cautions against complacency as pirate groups have operated over 1000 nm from the Somali coast. Follow the latest BMP, keep naval-coordination contacts current, and crews with armed guards must not mistake fishermen for pirates."],
+  ["Gulf of Guinea / West Africa", 1, "Caution - kidnapping and robbery history", [35, 17, 21, 18, 21],
+   "Counts sum the IMB country rows for West African coastal states (Nigeria, Ghana, Angola and neighbours). Follow the BMP West Africa guidelines: keep a vigilant lookout with all available means and report incidents to the regional reporting centre and the IMB PRC."],
+  ["Sulu-Celebes Sea / eastern Sabah", 1, "Moderately risky - kidnappings stopped since 2020", [9, 6, 9, 3, 1],
+   "Counts are the IMB Philippines rows. Crew kidnappings by Abu Sayyaf stopped after January 2020 following Malaysian and Philippine action, but the IMB still rates these waters moderately risky. Maintain anti-piracy watches at night and follow the Sabah Notice to Mariners NTM 14/2017 ship reporting system."],
+  ["Bangladesh coast / Chattogram", 1, "Caution - recurring incidents", [0, 7, 1, 14, 6],
+   "Incidents recur around Bangladeshi waters (14 in 2024, 6 in 2025). Maintain a strict anti-robbery watch at anchorage and report all incidents and suspicious approaches to the port authorities and the IMB PRC."],
+  ["Indonesian waters and anchorages", 1, "Caution - robbery at anchorages", [9, 10, 18, 22, 12],
+   "Anchor, wait or drift only in the ten designated areas patrolled by the Indonesian Marine Police (Belawan, Dumai, Nipah, Tanjung Berakit/Bintan, Tanjung Priok, Gresik, Taboneo, Tanjung Butan, Muara Berau, Balikpapan). Keep strict anti-piracy watches and report to the local authorities and IMB PRC."],
+  ["Malacca Strait", 0, "Stable under littoral patrols", [1, 0, 1, 1, 1],
+   "IMB: the situation currently remains stable - one incident in each of 2024 and 2025 - thanks to increased patrols by the littoral states. Continue anti-piracy / robbery watches at night; patrol levels are not guaranteed and some incidents may go unreported."],
+  ["South China Sea (off Tioman / Pulau Aur / Anambas / Natuna)", 0, "No 2025 incidents reported - stay vigilant", null,
+   "IMB records no incidents in these areas in 2025; the tanker hijackings of 2014-2017 stopped after arrests in Malaysia and Indonesia. The IMB still advises remaining vigilant, especially at night."],
+  ["Indian coast", 0, "Low incident count", [2, 3, 4, 2, 2],
+   "Few incidents are reported around the Indian coast. Keep normal anti-robbery vigilance at anchorage and report anything suspicious to the Indian Coast Guard and the IMB PRC."],
+  ["South America - Callao and Brazilian anchorages", 0, "Improved in 2025 - historically robbery-prone", null,
+   "Peru reported 1 incident in 2025 (18 in 2021) and Brazil none (3 in 2021) per IMB Table 1. Callao and Brazilian anchorages have a long robbery history, so keep deck watches at anchor and report to port control."],
+  ["Strait of Hormuz / Arabian Gulf", 1, "Conflict risk - outside piracy statistics", null,
+   "The IMB piracy statistics do not cover this corridor - the risk here is conflict-related, not piracy. Check the latest UKMTO advisories and follow flag-state guidance before transit."]
+];
+const ROUTE_RISK_SRC = "Counts and risk wording from the ICC International Maritime Bureau (IMB) Piracy and Armed Robbery Against Ships Report, January - December 2025 (icc-ccs.org), the global reference used by insurers and authorities. Counts cover piracy and armed-robbery incidents reported to the IMB Piracy Reporting Centre; conflict-zone targeting is flagged separately. Baked 23 Sep 2026 - the 2-day source check refreshes this when the next IMB edition appears.";
+
+function routeRiskHtml() {
+  let opts = '<option value="">Pick a shipping corridor</option>';
+  ROUTE_RISK.forEach((r, i) => { opts += '<option value="' + i + '">' + esc(r[0]) + '</option>'; });
+  return '<div class="detail-sec no-print"><h3>Shipping route safety - piracy &amp; conflict corridors</h3>' +
+    '<select class="sanc-pick" id="route-pick">' + opts + '</select><div id="route-out"></div>' +
+    '<p class="muted">' + esc(ROUTE_RISK_SRC) + '</p></div>';
+}
+
+function routeRiskRender(idx) {
+  const out = el('route-out');
+  if (!out) return;
+  if (idx === '' || idx == null) { out.innerHTML = ''; return; }
+  const r = ROUTE_RISK[+idx];
+  if (!r) { out.innerHTML = ''; return; }
+  const cls = r[1] === 2 ? 'sanc-red' : r[1] === 1 ? 'sanc-amber' : 'sanc-green';
+  let counts = '';
+  if (r[3]) {
+    const yrs = [2021, 2022, 2023, 2024, 2025];
+    const trend = r[3][4] > r[3][3] ? 'rising' : r[3][4] < r[3][3] ? 'falling' : 'flat';
+    counts = '<p class="muted">Incidents reported to IMB: ' + yrs.map((y, i) => y + ' <strong>' + r[3][i] + '</strong>').join(' &middot; ') + ' (' + trend + ')</p>';
+  } else {
+    counts = '<p class="muted">No incident count for this corridor in IMB Table 1 - see the note below.</p>';
+  }
+  out.innerHTML = '<div class="sanc-card ' + cls + '"><strong>' + esc(r[0]) + ' - ' + esc(r[2]) + '</strong>' + counts + '<p>' + esc(r[4]) + '</p></div>';
+}
+
 function addHtml(code, desc) {
   const digs = String(code || '').replace(/\D/g, '');
   if (!digs) return '';
@@ -35655,6 +35715,7 @@ function detailHtml(idx) {
   s += rodtepHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
+  s += routeRiskHtml();
   if (path.length > 1) {
     s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
@@ -35713,6 +35774,8 @@ function paintDetail() {
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
+  const routeP = el('route-pick');
+  if (routeP) routeP.addEventListener('change', () => { routeRiskRender(routeP.value); });
     paintLanded(e);
   }
   el('ai-settings').addEventListener('click', () => { V.needKey = false; V.settingsOpen = !V.settingsOpen; paintDetail(); });
