@@ -25,7 +25,7 @@ const SYS = [
   { tag: 'HS', name: 'WCO HS 2022 (international)', src: 'UN Comtrade extraction of the WCO HS 2022 nomenclature', url: 'https://comtrade.un.org/data/doc/api/' },
   { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025, and basic customs duty (BCD) standard rates from the CBIC Customs Tariff First Schedule as on 30.06.2025 (11,387 lines; statutory rates - effective rates vary by exemption notification)', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
   { tag: 'US', name: 'US HTS (Harmonized Tariff Schedule)', src: 'USITC official HTS export, includes general duty rates', url: 'https://hts.usitc.gov/' },
-  { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Publications Office of the EU, official CN 2026 dataset', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
+  { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Official Journal Regulation (EU) 2025/1926 (CN 2026), conventional (MFN) duty rates baked for 9,529 of 9,791 eight-digit lines - seasonal footnote rates and tariff-quota-only lines left unbaked', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
   { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Department for Business and Trade official 2026 commodity report', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.200/metadata?format=html' },
   { tag: 'KR', name: 'Korea HSK 2026', src: 'Korea Customs Service official HS code workbook, 1 Jan 2026', url: 'https://www.data.go.kr/data/15049722/fileData.do' },
   { tag: 'CA', name: 'Canada Customs Tariff 2026', src: 'Canada Border Services Agency official 2026 tariff by chapter', url: 'https://www.cbsa-asfc.gc.ca/trade-commerce/tariff-tarif/2026/menu-eng.html' },
@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen17';
+const DATA_BUILD = '2026-09-23-gen18';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -752,7 +752,7 @@ function landedCostHtml(e) {
     if (e[5] && e[5].indexOf('BCD ') === 0) rateDesc = 'BCD ' + e[5].slice(4) + ' (CBIC Customs Tariff as on 30.06.2025) + ' + rateDesc;
   } else {
     const pct = parseAdvalorem(e[5]);
-    if (e[5] && pct === null) mode = 'specific';
+    if (e[5] && (pct === null || (sys === 3 && /[€+]|MIN|MAX/.test(e[5])))) mode = 'specific';
     else if (pct !== null) mode = sys === 2 ? 'us' : 'adval';
     else mode = 'none';
     rateDesc = e[5] ? ('General duty ' + e[5] + ' (baked official rate)') : '';
@@ -1972,7 +1972,7 @@ function detailHtml(idx) {
     '<div><dt>System</dt><dd>' + esc(SYS[e[0]].name) + '</dd></div>' +
     '<div><dt>Chapter</dt><dd>' + esc(e[4]) + (chTitle ? ' - ' + esc(chTitle) : '') + '</dd></div>' +
     '<div><dt>Level</dt><dd>' + esc(levelName(e[1])) + '</dd></div>' +
-    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + (e[0] === 1 && e[5].indexOf('BCD ') === 0 ? ' <span class="muted">Statutory standard rate, CBIC Customs Tariff First Schedule as on 30.06.2025. Effective rates vary by exemption notification - verify on ICEGATE.</span>' : '') + '</dd></div>' : '') +
+    (e[5] ? '<div><dt>' + (e[0] === 2 ? 'US general duty' : 'Dataset duty / rate') + '</dt><dd>' + esc(e[5]) + (e[0] === 1 && e[5].indexOf('BCD ') === 0 ? ' <span class="muted">Statutory standard rate, CBIC Customs Tariff First Schedule as on 30.06.2025. Effective rates vary by exemption notification - verify on ICEGATE.</span>' : (e[0] === 3 ? ' <span class="muted">Conventional (MFN) duty, Regulation (EU) 2025/1926 (CN 2026). Tariff quotas, seasonal rates and preferential agreements can lower it - verify in TARIC.</span>' : '')) + '</dd></div>' : '') +
     (e[0] === 1 ? gstRowHtml(e[1]) : '') +
     '</dl>' +
     scometFlagHtml(e);
