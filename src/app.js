@@ -1501,6 +1501,26 @@ function originRender(country, e) {
   out.innerHTML = '<div class="sanc-card sanc-green"><strong>General (MFN) rate applies</strong><p>The rate shown above holds for most origins. Product- and origin-specific trade remedies (anti-dumping / countervailing duties) are not baked here - verify on the official ITA AD/CVD portal before pricing.</p></div>';
 }
 
+
+// ---- Payment currency rules for India trade (RBI/FEMA official, baked) ----
+// All rows from official RBI instruments; AD bank confirms case specifics. No estimates.
+const PAYC_ROWS = [
+  ["Invoicing currency", "Export and import contracts may be denominated in any freely convertible currency or in Indian rupees - there is no FEMA restriction on invoicing in INR.", "RBI Master Direction - Export of Goods and Services (rbi.org.in, id 10395)"],
+  ["Realising export proceeds", "Full export value must be realised and repatriated to India within 9 months of the export date. Rupee realisation is allowed only through a freely convertible Vostro account of a non-resident bank outside the ACU member countries, Nepal and Bhutan.", "RBI Master Direction - Export of Goods and Services"],
+  ["Rupee settlement with any country (SRVA)", "Any country's trade can be invoiced and settled fully in INR: the partner country's bank opens a Special Rupee Vostro Account with an Indian AD bank. AD banks no longer need prior RBI approval to open SRVAs. Not available for banks from FATF high-risk / non-cooperative jurisdictions.", "RBI Circular 10 of 11 Jul 2022, as amended by Circular 08 (2025-26) - approval requirement removed"],
+  ["Asian Clearing Union", "Trade with ACU members - Bangladesh, Bhutan, Iran, Maldives, Myanmar, Nepal, Pakistan, Sri Lanka - settles eligible transactions through the ACU mechanism (ACU dollar/euro/yen), not ordinary correspondent banking.", "RBI Master Direction No.16/2015-16 and A.P. (DIR) Circular 22 of 17 Mar 2020"],
+  ["Paying for imports", "Import payments may be made in any freely convertible currency or in INR through your AD Category-I bank; time limits and third-party payment rules are in the import Master Direction.", "RBI Master Direction - Import of Goods and Services (updated 12 Jan 2026, id 10201)"],
+];
+const PAYC_SRC = "From RBI's own Master Directions and circulars (rbi.org.in), baked 24 Sep 2026. 'Freely convertible currency' is not a fixed RBI list - in practice the major settlement currencies (USD, EUR, GBP, JPY and the others in the trade currencies panel). Your AD bank confirms what applies to a specific transaction; this is orientation, not legal advice.";
+
+function paycPanelHtml() {
+  return '<div class="about-box"><h3>Payment currency rules - India trade</h3>' +
+    '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Rule</th><th>What it says</th><th>Official source</th></tr></thead><tbody>' +
+    PAYC_ROWS.map((r) => '<tr><td><strong>' + esc(r[0]) + '</strong></td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<p class="muted">' + esc(PAYC_SRC) + '</p></div>';
+}
+
 function addHtml(code, desc) {
   const digs = String(code || '').replace(/\D/g, '');
   if (!digs) return '';
@@ -2639,6 +2659,8 @@ function searchIdleHtml() {
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide trade currencies' : 'Trade currencies - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' +
     (V.tcur ? '<div id="tcur-slot"></div>' : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
+    (V.payc ? paycPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -2891,6 +2913,8 @@ function paintIdle() {
     paintIdle();
     if (V.tcur) tcurLoad();
   });
+  const pcg = el('payc-toggle');
+  if (pcg) pcg.addEventListener('click', () => { V.payc = !V.payc; paintIdle(); });
   const rt = el('rev-toggle');
   if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
   const runRev = () => {
