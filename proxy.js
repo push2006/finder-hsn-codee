@@ -29,7 +29,7 @@ for (const kind of ['gemini', 'groq', 'mistral', 'nvidia']) {
 const OFF = { gemini: 0, groq: 0, mistral: 0, nvidia: 0 };
 
 // ---------------- live ships (AISStream) ----------------
-const AIS_KEY = process.env.AISSTREAM_KEY || '';
+const AIS_KEY = (process.env.AISSTREAM_KEY || '').trim();
 const AIS_URL = process.env.AISSTREAM_URL || 'wss://stream.aisstream.io/v0/stream';
 
 // Major India container/bulk gateways. Boxes about +/-0.35 deg around each
@@ -101,6 +101,7 @@ function aisEtaText(e) {
 
 const aisShips = new Map(); // mmsi -> record
 let aisMsgCount = 0, aisLastMsgAt = 0, aisConnected = false;
+let aisErrFrames = 0, aisLastFrameType = '', aisLastFrameNote = '';
 const aisBootedAt = Date.now();
 
 function aisUpsert(m) {
@@ -160,7 +161,15 @@ function aisConnect() {
   ws.onmessage = (ev) => {
     aisLastMsgAt = Date.now();
     aisMsgCount++;
-    try { aisUpsert(JSON.parse(ev.data)); } catch (e) { /* bad frame - skip */ }
+    try {
+      const m = JSON.parse(ev.data);
+      aisLastFrameType = m.MessageType || 'unknown';
+      if (!m.MetaData || !m.MetaData.MMSI) {
+        aisErrFrames++;
+        aisLastFrameNote = String(ev.data).replace(/[A-Za-z0-9]{20,}/g, '[redacted]').slice(0, 160);
+      }
+      aisUpsert(m);
+    } catch (e) { aisErrFrames++; aisLastFrameNote = 'unparseable frame'; }
   };
   ws.onclose = () => { aisConnected = false; aisRetry(); };
   ws.onerror = () => { try { ws.close(); } catch (e) { } };
@@ -235,6 +244,8 @@ http.createServer(async (req, res) => {
       ais: {
         keySet: !!AIS_KEY, connected: aisConnected, messages: aisMsgCount, vessels: aisShips.size,
         perPort: aisPerPort(), uptimeSec: Math.round((Date.now() - aisBootedAt) / 1000), warming: aisWarming(),
+        lastFrameType: aisLastFrameType || undefined, errorFrames: aisErrFrames || undefined,
+        lastFrameNote: aisLastFrameNote || undefined,
         note: typeof WebSocket !== 'function' ? 'node >= 22 required for the ais feed' : undefined,
       },
     });
