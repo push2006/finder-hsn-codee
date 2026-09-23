@@ -837,7 +837,7 @@ function landedCostHtml(e) {
   if (mode === 'in') {
     originBar = '<div class="lc-originbar">' +
       '<label class="sfield"><span class="slabel">Shipping from (origin country)</span><select id="lc-origin" class="sanc-pick"><option value="">Pick origin country</option>' + LC_ORIGINS.map((o) => '<option value="' + esc(o[0]) + '"' + (V.lcOrigin === o[0] ? ' selected' : '') + '>' + esc(o[0]) + '</option>').join('') + '<option value="__other"' + (V.lcOrigin === '__other' ? ' selected' : '') + '>Any other country</option></select></label>' +
-      '<label class="sfield"><span class="slabel">Invoice currency</span><select id="lc-ccy" class="sanc-pick">' + lcCcyOpts(V.lcCcy || 'USD') + '</select></label></div>' +
+      '<label class="sfield"><span class="slabel">Currency</span><select id="lc-ccy" class="sanc-pick">' + lcCcyOpts(V.lcCcy || 'USD') + '</select></label></div>' +
       '<div id="lc-sanc-out">' + lcSancLine(V.lcOrigin) + '</div>';
   }
   const cl = mode === 'in' ? '<span class="lc-clab">' + esc(V.lcCcy || 'USD') + '</span>' : 'USD';
@@ -854,7 +854,7 @@ function landedCostHtml(e) {
       ? 'Duty = baked general (MFN) rate from the official USITC HTS on the entered (CIF) value. Merchandise processing fee 0.3464% ad valorem (yearly min/max caps not applied) and harbor maintenance fee 0.125% (ocean freight only) are official CBP fees. State and local taxes, broker and port fees not included. Estimate only - verify before filing.'
       : 'Duty = baked general (MFN) rate from this system\'s official tariff on the CIF value. Destination VAT/GST and port fees are not baked for this system - check its official portal below. Estimate only - verify before filing.';
   return '<div class="detail-sec no-print lc-panel"><h3>' + (mode === 'in' ? 'Landed cost from any country - currency, sanctions, duty in one view' : 'Landed cost estimate') + '</h3>' +
-    '<p class="muted">' + esc(rateDesc) + (mode === 'in' ? '. Pick the origin country and invoice currency - values convert to INR at the live ECB reference rate, the sanctions verdict shows above, and the full duty and tax cascade computes here' : '. Type your shipment values - the full duty and tax cascade computes on this page') + '; nothing is sent anywhere.</p>' +
+    '<p class="muted">' + esc(rateDesc) + (mode === 'in' ? '. Pick the origin country and currency - values convert to INR at the live ECB reference rate, the sanctions verdict shows above, and the full duty and tax cascade computes here' : '. Type your shipment values - the full duty and tax cascade computes on this page') + '; nothing is sent anywhere.</p>' +
     inputs + '<div id="lc-out"></div>' +
     '<p class="muted lc-src">' + esc(srcNote) + '</p></div>';
 }
@@ -874,7 +874,7 @@ function paintLanded(e) {
     cur = 'INR';
     cif = (goods + fr + ins) * fx.rate;
     rows = [
-      ['Invoice total: ' + lcMoney(goods + fr + ins) + ' ' + fx.ccy, null],
+      ['Shipment total: ' + lcMoney(goods + fr + ins) + ' ' + fx.ccy, null],
       ['Rate: 1 ' + fx.ccy + ' = ' + fx.rate.toFixed(4) + ' INR' + (fx.manual ? ' (your override)' : ' (live ECB reference' + (fx.date ? ', ' + fx.date : '') + (fx.via || '') + ')'), null],
       ['Assessable value (CIF) in INR', cif],
     ];
@@ -1602,6 +1602,26 @@ function paycPanelHtml() {
     PAYC_ROWS.map((r) => '<tr><td><strong>' + esc(r[0]) + '</strong></td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') +
     '</tbody></table></div>' +
     '<p class="muted">' + esc(PAYC_SRC) + '</p></div>';
+}
+
+
+// ---- Port-wise import & export by commodity (official BPS 2024-25, Table 2.1.3) ----
+// Overseas cargo only: Unloaded = imports, Loaded = exports, '000 tonnes, 2024-25.
+// Broad official commodity groups - not HS-level. Rounded; component sums can differ by 1.
+const PORT_COMM = [["Kolkata (SMPA Kolkata Dock System)",[["POL Products",165,1],["Fertiliser",528,0],["FRM - Dry",23,0],["Food Grains",164,105],["Iron & Steel",28,24],["Veg. Oil",368,0],["Coking Coal",625,4],["Other Ore",210,0],["Container",4874,4052],["Others",2807,1324],["Total",9791,5509]]],["Haldia (SMPA Haldia Dock Complex)",[["POL Crude",21,0],["POL Products",1280,178],["Fertiliser",149,0],["FRM - Dry",453,0],["FRM - Liquid",473,0],["Food Grains",35,26],["Iron & Steel",217,0],["Iron Scrap",92,0],["Sugar",29,6],["Veg. Oil",3158,0],["Coking Coal",8162,0],["Iron Ore/Pellets",0,458],["Other Ore",3202,0],["Container",1632,1039],["Others",18535,3982],["Total",37439,5689]]],["Paradip",[["POL Crude",30581,0],["POL Products",457,940],["Fertiliser",327,0],["FRM - Dry",5974,0],["FRM - Liquid",1539,0],["Iron & Steel",545,1224],["Iron Scrap",79,0],["Veg. Oil",107,0],["Coking Coal",10631,24],["Iron Ore/Pellets",0,15426],["Other Ore",89,478],["Container",57,174],["Others",17634,409],["Total",68019,18675]]],["Visakhapatnam",[["POL Crude",15254,0],["POL Products",113,2134],["Fertiliser",1282,0],["FRM - Dry",1654,0],["FRM - Liquid",579,0],["Food Grains",82,1071],["Iron & Steel",47,229],["Coking Coal",6006,0],["Iron Ore/Pellets",0,694],["Other Ore",3732,123],["Container",4129,4772],["Others",18467,2821],["Total",51345,11844]]],["Kamarajar (Ennore)",[["POL Products",20,0],["Iron & Steel",0,140],["Coking Coal",2562,0],["Thermal Coal",6256,0],["Cement",927,737],["Container",6258,6888],["Others",2875,2047],["Total",18898,9812]]],["Chennai",[["POL Crude",9081,0],["POL Products",141,1857],["FRM - Dry",222,0],["Iron & Steel",1235,4],["Iron Scrap",153,49],["Sugar",0,23],["Veg. Oil",1162,0],["Other Ore",0,626],["Container",17575,15450],["Others",430,810],["Total",30000,18819]]],["V.O. Chidambaranar (Tuticorin)",[["POL Products",2,1],["Fertiliser",587,0],["FRM - Dry",861,0],["FRM - Liquid",140,0],["Food Grains",414,0],["Iron & Steel",0,35],["Veg. Oil",470,0],["Coking Coal",60,60],["Thermal Coal",981,0],["Cement",0,60],["Other Ore",35,0],["Container",6671,6517],["Others",11206,1639],["Total",21427,8313]]],["Cochin",[["POL Crude",17256,0],["POL Products",162,383],["FRM - Dry",212,0],["FRM - Liquid",133,0],["Iron & Steel",44,0],["Veg. Oil",25,0],["Container",2447,2814],["Others",1703,21],["Total",21982,3218]]],["New Mangalore",[["POL Crude",14954,0],["POL Products",0,4993],["Fertiliser",546,0],["FRM - Dry",58,0],["FRM - Liquid",148,0],["Iron & Steel",16,0],["Veg. Oil",1050,0],["Coking Coal",549,0],["Thermal Coal",6503,0],["Iron Ore/Pellets",0,988],["Container",638,858],["Others",4790,1186],["Total",29251,8025]]],["Mormugao",[["Fertiliser",239,0],["FRM - Liquid",307,0],["Coking Coal",6597,0],["Thermal Coal",903,0],["Iron Ore/Pellets",0,2121],["Others",2363,1201],["Total",10409,3322]]],["Jawaharlal Nehru (JNPA)",[["POL Products",341,0],["FRM - Liquid",328,0],["Iron & Steel",8,0],["Veg. Oil",1178,0],["Container",46034,35457],["Others",1869,14],["Total",49760,35471]]],["Mumbai",[["POL Crude",19212,0],["POL Products",2134,2489],["Fertiliser",479,0],["FRM - Dry",100,0],["Food Grains",33,0],["Iron & Steel",4009,811],["Sugar",0,10],["Veg. Oil",8,0],["Thermal Coal",6624,0],["Iron Ore/Pellets",1672,0],["Others",8468,240],["Total",42739,3550]]],["Deendayal (Kandla)",[["POL Crude",45632,0],["POL Products",1260,6737],["Fertiliser",4015,0],["FRM - Dry",408,0],["FRM - Liquid",1945,0],["Food Grains",1546,2233],["Iron & Steel",604,215],["Iron Scrap",356,0],["Sugar",1861,975],["Veg. Oil",4587,127],["Salt",0,16026],["Coking Coal",587,0],["Thermal Coal",16408,0],["Iron Ore/Pellets",400,0],["Other Ore",10,189],["Container",1945,2468],["Others",16584,7292],["Total",98148,36262]]],["All Ports",[["POL Crude",151990,0],["POL Products",6075,19712],["Fertiliser",8152,0],["FRM - Dry",9965,0],["FRM - Liquid",5592,0],["Food Grains",2274,3435],["Iron & Steel",6754,2681],["Iron Scrap",680,49],["Sugar",1890,1014],["Veg. Oil",12114,127],["Salt",0,16026],["Coking Coal",35780,88],["Thermal Coal",37675,0],["Cement",927,797],["Iron Ore/Pellets",2072,19686],["Other Ore",7279,1416],["Container",92259,80489],["Others",107731,22986],["Total",489208,168508]]]];
+const PORT_COMM_SRC = "From Basic Port Statistics of India 2024-25 (Ministry of Ports, Shipping and Waterways, shipmin.gov.in), Table 2.1.3 - overseas traffic by principal commodity at the 13 major ports. These are broad official commodity groups, not HS codes; coastal cargo excluded. For HS-code-level port data use DGCI&S's free online query (ftddp.dgciskol.gov.in - report type 'Commodity by Country by Port'). Baked 24 Sep 2026.";
+
+function portCommPanelHtml() {
+  const ports = PORT_COMM.map((pc) => pc[0]);
+  const sel = V.portComm || 'All Ports';
+  const cur = PORT_COMM.find((pc) => pc[0] === sel) || PORT_COMM[PORT_COMM.length - 1];
+  const rows = cur[1].slice().sort((a, b) => (b[1] + b[2]) - (a[1] + a[2]));
+  return '<div class="about-box"><h3>Port-wise import &amp; export by commodity - 2024-25</h3>' +
+    '<select class="sanc-pick" id="portcomm-pick">' + ports.map((pp) => '<option value="' + esc(pp) + '"' + (pp === sel ? ' selected' : '') + '>' + esc(pp) + '</option>').join('') + '</select>' +
+    '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Commodity group</th><th>Import (\'000 t)</th><th>Export (\'000 t)</th></tr></thead><tbody>' +
+    rows.map((r) => '<tr' + (r[0] === 'Total' ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + r[1].toLocaleString('en-IN') + '</td><td>' + r[2].toLocaleString('en-IN') + '</td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<p class="muted">' + esc(PORT_COMM_SRC) + '</p></div>';
 }
 
 function addHtml(code, desc) {
@@ -2765,6 +2785,8 @@ function searchIdleHtml() {
     (V.tcur ? '<div id="tcur-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
     (V.payc ? paycPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port-wise trade' : 'Port-wise import & export by commodity - 13 major ports (official)') + '</button></p>' +
+    (V.portCommOpen ? portCommPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -3019,6 +3041,10 @@ function paintIdle() {
   });
   const pcg = el('payc-toggle');
   if (pcg) pcg.addEventListener('click', () => { V.payc = !V.payc; paintIdle(); });
+  const pco = el('portcomm-toggle');
+  if (pco) pco.addEventListener('click', () => { V.portCommOpen = !V.portCommOpen; paintIdle(); });
+  const pcp = el('portcomm-pick');
+  if (pcp) pcp.addEventListener('change', () => { V.portComm = pcp.value; paintIdle(); });
   const rt = el('rev-toggle');
   if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
   const runRev = () => {
