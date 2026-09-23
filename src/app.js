@@ -26,7 +26,7 @@ const SYS = [
   { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025, and basic customs duty (BCD) standard rates from the CBIC Customs Tariff First Schedule as on 30.06.2025 (11,387 lines; statutory rates - effective rates vary by exemption notification)', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
   { tag: 'US', name: 'US HTS (Harmonized Tariff Schedule)', src: 'USITC official HTS export, includes general duty rates', url: 'https://hts.usitc.gov/' },
   { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Official Journal Regulation (EU) 2025/1926 (CN 2026), conventional (MFN) duty rates baked for 9,529 of 9,791 eight-digit lines - seasonal footnote rates and tariff-quota-only lines left unbaked', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
-  { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Global Tariff official dataset (Department for Business and Trade), version v4.0.1608, third-country (MFN) duty baked for 14,907 declarable ten-digit lines - conditional relief rates and suspensions excluded', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.200/metadata?format=html' },
+  { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Global Tariff official dataset (Department for Business and Trade), version v4.0.1608, third-country (MFN) duty baked for 14,907 declarable ten-digit lines - conditional relief rates and suspensions excluded', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.1608/metadata?format=html' },
   { tag: 'KR', name: 'Korea HSK 2026', src: 'Korea Customs Service official HS code workbook, 1 Jan 2026, with basic duty rates (기본세율) from the KCS CLIP tariff rate table, applicable year 2026 (11,326 of 11,327 ten-digit lines)', url: 'https://www.data.go.kr/data/15049722/fileData.do' },
   { tag: 'CA', name: 'Canada Customs Tariff 2026', src: 'Canada Border Services Agency official 2026 tariff by chapter', url: 'https://www.cbsa-asfc.gc.ca/trade-commerce/tariff-tarif/2026/menu-eng.html' },
   { tag: 'JP', name: 'Japan Tariff Schedule 2026', src: 'Japan Customs official tariff schedule, 1 Jan 2026', url: 'https://www.customs.go.jp/english/tariff/2026_01_01/index.htm' },
@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen27';
+const DATA_BUILD = '2026-09-23-gen28';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -2040,7 +2040,7 @@ function detailHtml(idx) {
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
       '</ol></div>';
   }
-  s += '<div class="detail-sec"><h3>Products covered under this code (' + kids.length + ')</h3>';
+  s += '<div class="detail-sec"><h3>Products covered under this code' + (kids.length ? ' (' + kids.length + ')' : '') + '</h3>';
   if (kids.length) {
     s += '<ul class="kids-list">' + kids.slice(0, 120).map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span>' + (db.entries[i][5] ? '<em class="rate">' + esc(db.entries[i][5]) + '</em>' : '') + '</li>').join('') + '</ul>';
   } else s += '<p>Leaf tariff line - it covers exactly the product described above.</p>';
