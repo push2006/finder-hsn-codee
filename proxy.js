@@ -158,18 +158,25 @@ function aisConnect() {
     console.log('aisstream connected, subscribing to', AIS_BOXES.length, 'port boxes');
     ws.send(JSON.stringify({ APIKey: AIS_KEY, BoundingBoxes: AIS_BOXES, MessageTypes: ['PositionReport', 'ShipStaticData'] }));
   };
-  ws.onmessage = (ev) => {
+  ws.onmessage = async (ev) => {
     aisLastMsgAt = Date.now();
     aisMsgCount++;
     try {
-      const m = JSON.parse(ev.data);
+      let d = ev.data;
+      if (typeof d !== 'string') {
+        if (d && typeof d.text === 'function') d = await d.text();
+        else if (d instanceof ArrayBuffer) d = Buffer.from(d).toString('utf8');
+        else if (ArrayBuffer.isView(d)) d = Buffer.from(d.buffer, d.byteOffset, d.byteLength).toString('utf8');
+        else d = String(d);
+      }
+      const m = JSON.parse(d);
       aisLastFrameType = m.MessageType || 'unknown';
       if (!m.MetaData || !m.MetaData.MMSI) {
         aisErrFrames++;
-        aisLastFrameNote = String(ev.data).replace(/[A-Za-z0-9]{20,}/g, '[redacted]').slice(0, 160);
+        aisLastFrameNote = String(d).replace(/[A-Za-z0-9]{20,}/g, '[redacted]').slice(0, 160);
       }
       aisUpsert(m);
-    } catch (e) { aisErrFrames++; aisLastFrameNote = 'unparseable frame'; }
+    } catch (e) { aisErrFrames++; aisLastFrameNote = 'unparseable ' + Object.prototype.toString.call(ev.data); }
   };
   ws.onclose = () => { aisConnected = false; aisRetry(); };
   ws.onerror = () => { try { ws.close(); } catch (e) { } };
