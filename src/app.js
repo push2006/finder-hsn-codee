@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen22';
+const DATA_BUILD = '2026-09-23-gen23';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -63,6 +63,10 @@ let groqModelUsed = '';
 // also rate-limits per IP.
 const AI_PROXY_URL = 'https://hsn-ai-proxy.onrender.com';
 const AI_PROXY_TOKEN = '648772556a62e577d379272febf550b9e28c5723'; // must match APP_SECRET on the proxy service
+// Live ship positions near India ports: same proxy pattern - ais-proxy.js holds
+// the AISStream key server-side; browsers only ever call this URL with the
+// same speed-bump token. The service name must stay hsn-ais-proxy.
+const AIS_PROXY_URL = 'https://hsn-ais-proxy.onrender.com';
 // Built-in shared keys (optional second choice): paste your own free keys here
 // to give every visitor AI without a worker. WARNING: anyone can read these in
 // the page source and bots scan public repos - a shared key can be stolen and
@@ -677,6 +681,7 @@ const V = { // per-view ephemeral state
   apiKey: (() => { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch { return ''; } })(),
   apiProvider: (() => { try { return localStorage.getItem(API_PROVIDER_STORE) || ''; } catch { return ''; } })(),
   ccy: {}, // sys -> info | 'err'
+  ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
 };
 
 function el(id) { return document.getElementById(id); }
@@ -2411,6 +2416,8 @@ function searchIdleHtml() {
     '<p><button class="file-button is-compact" data-variant="secondary" id="browse-toggle">' + (V.browse ? 'Hide chapter browser' : 'Browse all 98 chapters') + '</button></p>' +
     '<p><button class="file-button is-compact" data-variant="secondary" id="boom-toggle">' + (V.boom ? 'Hide booming products' : 'Booming products 2025 - India\'s fastest-growing trade lines') + '</button></p>' +
     (V.boom ? boomPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
+    (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -2433,6 +2440,83 @@ function changesBannerHtml() {
     (S.changes.length > 10 ? '<p class="muted">and ' + (S.changes.length - 10) + ' more</p>' : '') +
     '<button class="file-button is-compact" data-variant="secondary" id="changes-ok">Got it</button></div>';
 }
+// ---- Live ships near India ports (AISStream free feed via ais-proxy.js) ----
+let shipsTimer = null;
+function shipsAgo(sec) {
+  if (sec < 60) return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm ago';
+}
+function shipsLoad() {
+  if (!V.ships) return;
+  V.shipsBusy = true;
+  paintShips();
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 90000); // free server cold start can take a minute
+  fetch(AIS_PROXY_URL + '/ships?port=' + encodeURIComponent(V.shipsPort), { headers: { 'x-app-token': AI_PROXY_TOKEN }, signal: ctrl.signal })
+    .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => {
+      clearTimeout(to);
+      V.shipsBusy = false;
+      if (!ok) {
+        V.shipsErr = (j && j.error && /not configured/.test(j.error.message || '')) ? 'setup' : 'down';
+        V.shipsData = null;
+      } else {
+        V.shipsErr = null;
+        V.shipsData = j;
+        V.shipsAt = Date.now();
+      }
+      paintShips();
+      if (shipsTimer) clearTimeout(shipsTimer);
+      if (V.ships) shipsTimer = setTimeout(shipsLoad, 60000);
+    })
+    .catch(() => {
+      clearTimeout(to);
+      V.shipsBusy = false; V.shipsErr = 'down'; V.shipsData = null;
+      paintShips();
+      if (shipsTimer) clearTimeout(shipsTimer);
+      if (V.ships) shipsTimer = setTimeout(shipsLoad, 60000);
+    });
+}
+function paintShips() {
+  const slot = el('ships-slot');
+  if (!slot) return;
+  if (V.shipsBusy && !V.shipsData) {
+    slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3><p class="muted">Connecting to the live ship feed - the free tracking server sleeps when nobody is watching, so the first load can take up to a minute. Hang on...</p></div>';
+    return;
+  }
+  if (V.shipsErr) {
+    slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3><p class="muted">' +
+      (V.shipsErr === 'setup'
+        ? 'Live tracking is being set up on our side - please check back soon.'
+        : 'Could not reach the live ship feed. The free tracking server sleeps when idle and can take up to a minute to wake - tap Retry.') +
+      '</p><p><button class="file-button is-compact" data-variant="secondary" id="ships-retry">Retry</button></p></div>';
+    const rb = el('ships-retry');
+    if (rb) rb.addEventListener('click', shipsLoad);
+    return;
+  }
+  const d = V.shipsData;
+  if (!d) { slot.innerHTML = ''; return; }
+  const total = d.ports.reduce((a, x) => a + x.count, 0);
+  const chips = [{ code: 'ALL', name: 'All ports', count: total }].concat(d.ports)
+    .map((x) => '<button class="chip' + (V.shipsPort === x.code ? ' on' : '') + '" data-shipsp="' + x.code + '">' + esc(x.name) + ' (' + x.count + ')</button>').join('');
+  let rows = '';
+  if (!d.vessels.length) {
+    rows = '<p class="muted">No vessels reporting in this area right now' + (d.warming ? ' - the feed just woke up and positions are still arriving, give it a few minutes' : '') + '.</p>';
+  } else {
+    rows = '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Vessel</th><th>Type</th><th>Flag</th><th>Speed</th><th>Destination</th><th>ETA (UTC)</th><th>Port area</th><th>Last seen</th></tr></thead><tbody>' +
+      d.vessels.map((v) => '<tr><td><strong>' + esc(v.name || 'MMSI ' + v.mmsi) + '</strong></td><td>' + esc(v.type || '-') + '</td><td>' + esc(v.flag || '-') + '</td><td>' + (v.sog !== null ? v.sog + ' kn' : '-') + '</td><td>' + esc(v.dest || '-') + '</td><td>' + esc(v.eta || '-') + '</td><td>' + esc((d.ports.find((x) => x.code === v.port) || {}).name || v.port) + '</td><td>' + esc(shipsAgo(v.seenAgoSec)) + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+  slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3>' +
+    '<p class="muted">' + d.count + ' vessel' + (d.count === 1 ? '' : 's') + ' reporting - updated ' + new Date(d.updated).toLocaleTimeString() + (V.shipsBusy ? ' - refreshing...' : ' - auto-refreshes every 60 seconds') + '.</p>' +
+    '<div class="chip-row">' + chips + '</div>' + rows +
+    '<p class="muted">Every vessel broadcasts its own position by AIS radio; volunteer shore stations relay it through the free AISStream community feed. Coastal coverage only - a ship mid-ocean appears when it nears land. Destination and ETA are keyed in by the crew and can be stale. Free data, not for navigation.</p></div>';
+  Array.prototype.forEach.call(slot.querySelectorAll('[data-shipsp]'), (b) => {
+    b.addEventListener('click', () => { V.shipsPort = b.getAttribute('data-shipsp'); shipsLoad(); });
+  });
+}
+
 function paintSearch() {
   const idle = !V.q.trim();
   el('view').innerHTML = '<div class="page-pad">' +
@@ -2492,6 +2576,13 @@ function paintIdle() {
   });
   const bch = el('boom-ch');
   if (bch) bch.addEventListener('change', () => { V.boomCh = bch.value; paintIdle(); });
+  const stg = el('ships-toggle');
+  if (stg) stg.addEventListener('click', () => {
+    V.ships = !V.ships;
+    if (!V.ships && shipsTimer) { clearTimeout(shipsTimer); shipsTimer = null; }
+    paintIdle();
+    if (V.ships && !V.shipsData && !V.shipsBusy) shipsLoad();
+  });
   const rt = el('rev-toggle');
   if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
   const runRev = () => {
