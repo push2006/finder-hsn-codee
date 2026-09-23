@@ -47,7 +47,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen26';
+const DATA_BUILD = '2026-09-23-gen27';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -1314,6 +1314,33 @@ function ftaHtml(code) {
 const ADD_STOP = new Set(['anti', 'dumping', 'investigation', 'concerning', 'imports', 'originating', 'exported', 'from', 'initiation', 'sunset', 'review', 'aluminium', 'steel', 'stainless', 'plastic', 'plastics', 'rubber', 'paper', 'glass', 'copper', 'iron', 'textile', 'textiles', 'chemical', 'chemicals', 'products', 'technical', 'grade', 'certain', 'other', 'originating', 'thereof']);
 
 
+const PORT_STATS = [
+  ["Paradip", 135361, 145380, 150408, "coal, POL, iron ore"],
+  ["Deendayal (Kandla)", 137561, 132373, 150157, "POL, coal, containers (0.48M TEU)"],
+  ["JNPT (Nhava Sheva)", 83861, 85817, 92115, "containers (7.30M TEU)"],
+  ["Visakhapatnam", 73750, 81090, 82623, "POL, iron ore, containers"],
+  ["Mumbai", 63608, 67261, 68625, "POL, coal, iron ore"],
+  ["Chennai", 48949, 51598, 54961, "containers (1.82M TEU), POL"],
+  ["Kamarajar (Ennore)", 43507, 45277, 48407, "coal, containers"],
+  ["SMPA Haldia", 48608, 49536, 47310, "coal, POL"],
+  ["New Mangalore", 41417, 45708, 46014, "POL, coal, containers"],
+  ["V.O.C. (Tuticorin)", 38042, 41402, 41724, "containers (0.80M TEU), coal"],
+  ["Cochin", 35256, 36316, 37745, "POL, containers (0.84M TEU)"],
+  ["Mormugao", 17334, 20628, 18126, "coal, iron ore"],
+  ["SMPA Kolkata DS", 17051, 16909, 16641, "containers (0.62M TEU)"],
+  ["ALL MAJOR PORTS", 784305, 819295, 854858, "13.53M TEU containers across all major ports"]
+];
+const PORT_STATS_SRC = "Traffic in million tonnes from Basic Port Statistics of India 2024-25 (Ministry of Ports, Shipping & Waterways), tables 2.1.1-2.1.3. Only the 12 government major ports are covered - private non-major ports (Mundra, Pipavav, Krishnapatnam and others) together moved another 742.41 MT in 2024-25 and are outside this table. Baked 23 Sep 2026, refreshed by the weekly source check.";
+
+function portStatsTable() {
+  const mt = (v) => (Math.round(v / 10) / 100).toFixed(2);
+  const rows = PORT_STATS.map((r) => {
+    const yoy = r[2] ? (r[3] - r[2]) / r[2] * 100 : 0;
+    return '<tr><td>' + esc(r[0]) + '</td><td class="num">' + mt(r[1]) + '</td><td class="num">' + mt(r[2]) + '</td><td class="num"><strong>' + mt(r[3]) + '</strong></td><td class="num">' + (yoy >= 0 ? '+' : '') + yoy.toFixed(1) + '%</td><td>' + esc(r[4]) + '</td></tr>';
+  }).join('');
+  return '<table class="fta-t"><thead><tr><th>Port</th><th class="num">2022-23</th><th class="num">2023-24</th><th class="num">2024-25 (MT)</th><th class="num">YoY</th><th>Main cargo 2024-25</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
 function docsHtml(chapter) {
   const ch = parseInt(chapter, 10);
   if (!ch) return '';
@@ -1328,6 +1355,8 @@ function docsHtml(chapter) {
     '<h4>Exporting from India</h4><ul class="certs-l">' + mk(DOC_BASE_OUT, 'out') + '</ul>' +
     '<h4>Importing into India</h4><ul class="certs-l">' + mk(DOC_BASE_IN, 'in') + '</ul>' +
     '<h4>Main Indian ports</h4><div class="ports-grid">' + PORTS.map((pt) => '<div class="port-chip"><strong>' + esc(pt[0]) + '</strong> ' + esc(pt[1]) + ' <span class="muted">' + esc(pt[3]) + '</span></div>').join('') + '</div>' +
+    '<h4>Port cargo statistics - last 3 years</h4>' + portStatsTable() +
+    '<p class="muted">' + esc(PORT_STATS_SRC) + '</p>' +
     '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
 }
 
