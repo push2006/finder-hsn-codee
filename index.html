@@ -33629,7 +33629,7 @@ const SYS = [
 ];
 
 const TRADE_YEAR = 2025;
-const DATA_BUILD = '2026-09-23-gen23';
+const DATA_BUILD = '2026-09-23-gen24';
 // Gemini model chain lives at the AI swap points below (near the key lines).
 let geminiModelUsed = '';
 let geminiGrounded = false;
@@ -34264,6 +34264,7 @@ const V = { // per-view ephemeral state
   apiProvider: (() => { try { return localStorage.getItem(API_PROVIDER_STORE) || ''; } catch { return ''; } })(),
   ccy: {}, // sys -> info | 'err'
   ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
+  tcur: false, tcurData: null, tcurBusy: false, tcurErr: false,
 };
 
 function el(id) { return document.getElementById(id); }
@@ -36000,6 +36001,8 @@ function searchIdleHtml() {
     (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide trade currencies' : 'Trade currencies - INR vs USD, EUR, GBP, AED and 8 more (live)') + '</button></p>' +
+    (V.tcur ? '<div id="tcur-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -36099,6 +36102,81 @@ function paintShips() {
   });
 }
 
+// ---- Trade currencies: INR vs all major trade currencies, live via Frankfurter/ECB ----
+const TCUR_LIST = [
+  ['USD', 'US dollar'], ['EUR', 'Euro'], ['GBP', 'British pound'], ['CNY', 'Chinese yuan'],
+  ['JPY', 'Japanese yen'], ['AED', 'UAE dirham'], ['KRW', 'South Korean won'], ['SGD', 'Singapore dollar'],
+  ['AUD', 'Australian dollar'], ['CAD', 'Canadian dollar'], ['CHF', 'Swiss franc'], ['HKD', 'Hong Kong dollar'],
+];
+const AED_PEG = 3.6725; // UAE central bank peg: 1 USD = 3.6725 AED, so the dirham row derives from the live USD rate
+function tcurLoad() {
+  if (!V.tcur) return;
+  if (V.tcurData || V.tcurBusy) { paintTcur(); return; }
+  V.tcurBusy = true; V.tcurErr = false;
+  paintTcur();
+  const now = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const start = new Date(now.getTime() - 400 * 864e5);
+  const to = TCUR_LIST.map((c) => c[0]).filter((c) => c !== 'AED').join(',');
+  fetch('https://api.frankfurter.dev/v1/' + fmt(start) + '..' + fmt(now) + '?from=INR&to=' + to)
+    .then((r) => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then((j) => {
+      const rates = j.rates || {};
+      const days = Object.keys(rates).sort();
+      if (!days.length) throw new Error('empty');
+      const last = days[days.length - 1];
+      const pick = (ago) => {
+        const tt = fmt(new Date(now.getTime() - ago * 864e5));
+        let best = days[0];
+        for (const d of days) { if (d <= tt) best = d; else break; }
+        return rates[best];
+      };
+      const mkRow = (fx) => {
+        const cur = 1 / fx(rates[last]);
+        const m = 1 / fx(pick(30));
+        const y = 1 / fx(pick(365));
+        return { cur, p30: ((cur - m) / m) * 100, p365: ((cur - y) / y) * 100 };
+      };
+      V.tcurData = {
+        date: last,
+        rows: TCUR_LIST.map((pair) => {
+          const r = pair[0] === 'AED' ? mkRow((dr) => dr.USD * AED_PEG) : mkRow((dr) => dr[pair[0]]);
+          r.ccy = pair[0]; r.name = pair[1];
+          return r;
+        }),
+      };
+      V.tcurBusy = false;
+      paintTcur();
+    })
+    .catch(() => { V.tcurBusy = false; V.tcurErr = true; paintTcur(); });
+}
+function paintTcur() {
+  const slot = el('tcur-slot');
+  if (!slot) return;
+  if (V.tcurBusy && !V.tcurData) {
+    slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3><p class="muted">Loading live rates...</p></div>';
+    return;
+  }
+  if (V.tcurErr) {
+    slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3><p class="muted">Could not load live currency rates - check the connection and tap Retry.</p><p><button class="file-button is-compact" data-variant="secondary" id="tcur-retry">Retry</button></p></div>';
+    const rb = el('tcur-retry');
+    if (rb) rb.addEventListener('click', () => { V.tcurErr = false; tcurLoad(); });
+    return;
+  }
+  const d = V.tcurData;
+  if (!d) { slot.innerHTML = ''; return; }
+  const fmtR = (v) => (v >= 5 ? v.toFixed(2) : v.toFixed(3));
+  const cell = (p2) => '<span style="color:' + (p2 > 0.05 ? '#a33' : p2 < -0.05 ? '#273' : 'inherit') + '">' + (p2 >= 0 ? '+' : '') + p2.toFixed(1) + '%</span>';
+  const weaker = d.rows.filter((r) => r.p30 > 0).length;
+  slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3>' +
+    '<p class="muted">Live rates for ' + esc(d.date) + '. In the last 30 days the rupee weakened against ' + weaker + ' of ' + d.rows.length + ' major trade currencies.</p>' +
+    '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Currency</th><th>Today (1 unit = INR)</th><th>30 days</th><th>1 year</th></tr></thead><tbody>' +
+    d.rows.map((r) => '<tr><td><strong>' + r.ccy + '</strong> ' + esc(r.name) + '</td><td>' + fmtR(r.cur) + '</td><td>' + cell(r.p30) + '</td><td>' + cell(r.p365) + '</td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<p class="muted">Positive % = that currency costs more rupees than before (the rupee weakened against it) - goods priced in it are getting costlier. The UAE dirham row derives from the live US dollar rate: the UAE central bank pegs 1 USD = 3.6725 AED, so the dirham moves exactly with the dollar.</p>' +
+    '<p class="muted">Live ECB reference rates via the free Frankfurter API, fetched in your browser when you open this panel - not baked into the dataset. Indicative, not settlement rates.</p></div>';
+}
+
 function paintSearch() {
   const idle = !V.q.trim();
   el('view').innerHTML = '<div class="page-pad">' +
@@ -36163,7 +36241,13 @@ function paintIdle() {
     V.ships = !V.ships;
     if (!V.ships && shipsTimer) { clearTimeout(shipsTimer); shipsTimer = null; }
     paintIdle();
-    if (V.ships && !V.shipsData && !V.shipsBusy) shipsLoad();
+    if (V.ships) shipsLoad();
+  });
+  const tcg = el('tcur-toggle');
+  if (tcg) tcg.addEventListener('click', () => {
+    V.tcur = !V.tcur;
+    paintIdle();
+    if (V.tcur) tcurLoad();
   });
   const rt = el('rev-toggle');
   if (rt) rt.addEventListener('click', () => { V.rev = !V.rev; paintIdle(); });
