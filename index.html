@@ -405,6 +405,13 @@ h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 .cc-card { border: 1px solid var(--line, #d8cfc4); border-radius: 10px; padding: 12px 14px; background: var(--card, #fff); }
 .cc-card .cc-line { margin: 8px 0 0; font-size: 13.5px; }
 
+/* India trade summary - words + top-10 tables */
+.tsum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 10px; }
+.tsum-grid h4 { margin: 4px 0 6px; }
+.tsum-panel p { margin: 6px 0; }
+.tsum-table { min-width: 0; }
+.tsum-grid .report-table-wrap { margin: 0; }
+
 </style>
 </head>
 <body>
@@ -34620,6 +34627,34 @@ function linkPanelHtml(e, idx) {
 }
 
 // Booming products - India trade momentum leaderboard (UN Comtrade 2021-2025, baked).
+function tsumData() {
+  if (V.tsumData) return V.tsumData;
+  let mi = 0, xi = 0;
+  const topM = [], topX = [];
+  for (const c6 in TRADE6) { const t = TRADE6[c6]; mi += t[0]; xi += t[1]; if (t[0] > 0) topM.push([c6, t[0], t[1]]); if (t[1] > 0) topX.push([c6, t[0], t[1]]); }
+  topM.sort((a, b) => b[1] - a[1]); topX.sort((a, b) => b[2] - a[2]);
+  let sur = null, def = null;
+  for (const c6 in TRADE6) { const t = TRADE6[c6]; const d = t[1] - t[0]; if (t[1] > 0 && (sur === null || d > sur[1])) sur = [c6, d]; if (t[0] > 0 && (def === null || -d > def[1])) def = [c6, -d]; }
+  V.tsumData = { mi, xi, topM: topM.slice(0, 10), topX: topX.slice(0, 10), sur, def, n: Object.keys(TRADE6).length };
+  return V.tsumData;
+}
+function tsumPanelHtml() {
+  const d = tsumData();
+  const bal = d.xi - d.mi;
+  const share = (v, tot) => ((v / tot) * 100).toFixed(1);
+  const idxOf = (c6) => S.db.keyToIdx.get('0:' + c6);
+  const descOf = (c6) => { const idx = idxOf(c6); return idx !== undefined ? pretty(S.db.entries[idx][2]) : 'HS ' + c6; };
+  const m1 = d.topM[0], x1 = d.topX[0];
+  const list = (rows, flow) => '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>#</th><th>HS</th><th>Product</th><th>' + (flow === 'M' ? 'Imports' : 'Exports') + '</th></tr></thead><tbody>' +
+    rows.map((r, i) => { const idx = idxOf(r[0]); return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r[0]) + '</td><td>' + esc(descOf(r[0])) + '</td><td>' + esc(fmtUsd(r[flow === 'M' ? 1 : 2])) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  return '<div class="chip-sec tsum-panel"><h3>India trade ' + TRADE_YEAR + ' - top imports &amp; exports in words</h3>' +
+    '<p>In calendar ' + TRADE_YEAR + ', India imported <strong>' + esc(fmtUsd(d.mi)) + '</strong> of goods and exported <strong>' + esc(fmtUsd(d.xi)) + '</strong> - a goods ' + (bal >= 0 ? 'surplus' : 'deficit') + ' of <strong>' + esc(fmtUsd(Math.abs(bal))) + '</strong>.</p>' +
+    (m1 && x1 ? '<p>The single biggest import line is <strong>' + esc(descOf(m1[0])) + ' (HS ' + m1[0] + ')</strong> at ' + esc(fmtUsd(m1[1])) + ' - ' + share(m1[1], d.mi) + '% of all goods imports. The biggest export line is <strong>' + esc(descOf(x1[0])) + ' (HS ' + x1[0] + ')</strong> at ' + esc(fmtUsd(x1[2])) + ' - ' + share(x1[2], d.xi) + '% of all goods exports.</p>' : '') +
+    (d.sur && d.def ? '<p>Best surplus line: <strong>' + esc(descOf(d.sur[0])) + ' (HS ' + d.sur[0] + ')</strong> - exports ahead of imports by ' + esc(fmtUsd(d.sur[1])) + '. Deepest deficit line: <strong>' + esc(descOf(d.def[0])) + ' (HS ' + d.def[0] + ')</strong> - imports ahead by ' + esc(fmtUsd(d.def[1])) + '.</p>' : '') +
+    '<div class="tsum-grid"><div><h4>Top 10 imports ' + TRADE_YEAR + '</h4>' + list(d.topM, 'M') + '</div><div><h4>Top 10 exports ' + TRADE_YEAR + '</h4>' + list(d.topX, 'X') + '</div></div>' +
+    '<p class="muted">UN Comtrade, India reporter, partner World, calendar ' + TRADE_YEAR + ' (baked 21 Sep 2026). Imports CIF, USD; 6-digit lines, ' + d.n.toLocaleString('en-US') + ' products covered. Merchandise goods only - services trade is not in this dataset. Tap a row for the full code detail.</p></div>';
+}
+
 function boomData() {
   if (V.boomData) return V.boomData;
   const out = { X: [], M: [] };
@@ -36559,6 +36594,8 @@ function searchIdleHtml() {
     '<p><button class="file-button is-compact" data-variant="secondary" id="browse-toggle">' + (V.browse ? 'Hide chapter browser' : 'Browse all 98 chapters') + '</button></p>' +
     '<p><button class="file-button is-compact" data-variant="secondary" id="boom-toggle">' + (V.boom ? 'Hide booming products' : 'Booming products 2025 - India\'s fastest-growing trade lines') + '</button></p>' +
     (V.boom ? boomPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="tsum-toggle">' + (V.tsum ? 'Hide India trade summary' : 'India trade ' + TRADE_YEAR + ' in words - top imports &amp; exports') + '</button></p>' +
+    (V.tsum ? tsumPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -36801,6 +36838,8 @@ function paintIdle() {
   if (bt) bt.addEventListener('click', () => { V.browse = !V.browse; paintIdle(); });
   const bm = el('boom-toggle');
   if (bm) bm.addEventListener('click', () => { V.boom = !V.boom; paintIdle(); });
+  const tsm = el('tsum-toggle');
+  if (tsm) tsm.addEventListener('click', () => { V.tsum = !V.tsum; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });
