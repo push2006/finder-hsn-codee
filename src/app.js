@@ -689,6 +689,7 @@ const V = { // per-view ephemeral state
   ccy: {}, // sys -> info | 'err'
   ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
   tcur: false, tcurData: null, tcurBusy: false, tcurErr: false,
+  docsOpen: false,
 };
 
 function el(id) { return document.getElementById(id); }
@@ -1443,8 +1444,7 @@ function docsHtml(chapter) {
     '<h4>Exporting from India</h4><ul class="certs-l">' + mk(DOC_BASE_OUT, 'out') + '</ul>' +
     '<h4>Importing into India</h4><ul class="certs-l">' + mk(DOC_BASE_IN, 'in') + '</ul>' +
     '<h4>Main Indian ports</h4><div class="ports-grid">' + PORTS.map((pt) => '<div class="port-chip"><strong>' + esc(pt[0]) + '</strong> ' + esc(pt[1]) + ' <span class="muted">' + esc(pt[3]) + '</span></div>').join('') + '</div>' +
-    '<h4>Port cargo statistics - last 3 years</h4>' + portStatsTable() +
-    '<p class="muted">' + esc(PORT_STATS_SRC) + '</p>' +
+    '<p class="muted">Port traffic and commodity-wise import/export statistics now live in one place - the Port trade statistics panel on the home page.</p>' +
     '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
 }
 
@@ -1616,11 +1616,15 @@ function portCommPanelHtml() {
   const sel = V.portComm || 'All Ports';
   const cur = PORT_COMM.find((pc) => pc[0] === sel) || PORT_COMM[PORT_COMM.length - 1];
   const rows = cur[1].slice().sort((a, b) => (b[1] + b[2]) - (a[1] + a[2]));
-  return '<div class="about-box"><h3>Port-wise import &amp; export by commodity - 2024-25</h3>' +
+  return '<div class="about-box"><h3>Port trade statistics - 13 major ports (official)</h3>' +
+    '<h4>Port traffic - last 3 years (overseas + coastal cargo, million tonnes)</h4>' + portStatsTable() +
+    '<p class="muted">' + esc(PORT_STATS_SRC) + '</p>' +
+    '<h4>Commodity-wise import &amp; export 2024-25 (overseas cargo only, \'000 tonnes)</h4>' +
     '<select class="sanc-pick" id="portcomm-pick">' + ports.map((pp) => '<option value="' + esc(pp) + '"' + (pp === sel ? ' selected' : '') + '>' + esc(pp) + '</option>').join('') + '</select>' +
     '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Commodity group</th><th>Import (\'000 t)</th><th>Export (\'000 t)</th></tr></thead><tbody>' +
     rows.map((r) => '<tr' + (r[0] === 'Total' ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + r[1].toLocaleString('en-IN') + '</td><td>' + r[2].toLocaleString('en-IN') + '</td></tr>').join('') +
     '</tbody></table></div>' +
+    '<p class="muted">Scope note: the 3-year table above counts overseas + coastal cargo, so its totals are higher than this commodity table, which counts overseas cargo only. Both are from the same official BPS 2024-25 tables - the difference is scope, not an error.</p>' +
     '<p class="muted">' + esc(PORT_COMM_SRC) + '</p></div>';
 }
 
@@ -2326,7 +2330,8 @@ function detailHtml(idx) {
   s += riskHtml(e);
   s += rodtepHtml(e);
   s += sancHtml();
-  s += docsHtml(e[4]);
+  const dh = docsHtml(e[4]);
+  if (dh) s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="docs-toggle">' + (V.docsOpen ? 'Hide shipping documents & ports' : 'Shipping documents & India ports') + '</button></p></div>' + (V.docsOpen ? dh : '');
   s += routeRiskHtml();
   s += originDutyHtml(e);
   if (path.length > 1) {
@@ -2393,6 +2398,8 @@ function paintDetail() {
     paintDetail();
     if (V.tcur) tcurLoad();
   });
+  const dtg = el('docs-toggle');
+  if (dtg) dtg.addEventListener('click', () => { V.docsOpen = !V.docsOpen; paintDetail(); });
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
   const lcO = el('lc-origin');
@@ -2842,7 +2849,7 @@ function searchIdleHtml() {
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
     (V.payc ? paycPanelHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port-wise trade' : 'Port-wise import & export by commodity - 13 major ports (official)') + '</button></p>' +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port trade statistics' : 'Port trade statistics - 13 major ports, traffic + commodity (official)') + '</button></p>' +
     (V.portCommOpen ? portCommPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="portwx-toggle">' + (V.portWxOpen ? 'Hide port weather' : 'Port weather - 13 major ports (live)') + '</button></p>' +
     (V.portWxOpen ? portWxPanelHtml() : '') +
