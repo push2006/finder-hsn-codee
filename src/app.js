@@ -1519,7 +1519,7 @@ function exportChecklistHtml(e) {
   if (e[0] !== 1) return '';
   const ch = parseInt(e[4], 10);
   const steps = [];
-  steps.push(['Code confirmed', 'This line <strong>' + esc(fmtCode(1, e[1])) + '</strong> - ' + esc(pretty(e[2])) + (e[5] ? ' - GST ' + esc(e[5]) : '') + '. Use this exact code on the invoice and shipping bill.']);
+  steps.push(['Code confirmed', 'This line <strong>' + esc(fmtCode(1, e[1])) + '</strong> - ' + esc(pretty(e[2])) + (e[5] ? ' - ' + esc(e[5]) : '') + '. Use this exact code on the invoice and shipping bill.']);
   const sc = SCOMET[e[1]];
   const kids = scometKids(e[1]);
   if (sc || kids.length) {
