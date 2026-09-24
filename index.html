@@ -398,6 +398,13 @@ body { background: var(--ds-page); color: var(--ds-ink); }
 .src-line a, .muted a { color: var(--ds-accent); }
 h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important; }
 
+/* Country compare - side-by-side country cards */
+.cc-picks { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 10px; }
+.cc-picks .sfield { flex: 1 1 220px; }
+.cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.cc-card { border: 1px solid var(--line, #d8cfc4); border-radius: 10px; padding: 12px 14px; background: var(--card, #fff); }
+.cc-card .cc-line { margin: 8px 0 0; font-size: 13.5px; }
+
 </style>
 </head>
 <body>
@@ -34858,6 +34865,46 @@ function dutyCompareHtml(e) {
 }
 
 
+function countryCompareHtml(e) {
+  const groups = linkage(S.db, e);
+  const rows = groups.map((g) => {
+    const exact = S.db.keyToIdx.get(g.sys + ':' + g.target);
+    const exts = [...g.extSample].sort((x, y) => S.db.entries[y][1].length - S.db.entries[x][1].length);
+    let pick = null;
+    if (exact !== undefined && S.db.entries[exact][5]) pick = exact;
+    else { for (const i2 of exts) { if (S.db.entries[i2][5]) { pick = i2; break; } } }
+    if (pick === null) pick = exact !== undefined ? exact : (exts.length ? exts[0] : null);
+    return { sys: g.sys, pick };
+  }).filter((r) => r.pick !== null);
+  if (rows.length < 2) return '';
+  const inRows = (s2) => rows.some((r) => r.sys === s2);
+  const a = (V.ccA !== undefined && inRows(V.ccA)) ? V.ccA : (inRows(1) ? 1 : rows[0].sys);
+  const b = (V.ccB !== undefined && inRows(V.ccB) && V.ccB !== a) ? V.ccB : rows.find((r) => r.sys !== a).sys;
+  const opt = (sel) => rows.map((r) => '<option value="' + r.sys + '"' + (r.sys === sel ? ' selected' : '') + '>' + esc(SYS[r.sys].tag + ' - ' + SYS[r.sys].name) + '</option>').join('');
+  const card = (sys) => {
+    const row = rows.find((r) => r.sys === sys);
+    const x = S.db.entries[row.pick];
+    const kids = (S.db.children.get(row.pick) || []).length;
+    const docs = sys === 1
+      ? '<p class="cc-line"><strong>Documents &amp; certificates:</strong> baked on this page below - shipping documents, India certificates &amp; compliance, anti-dumping and RoDTEP rebate sections apply to this line.</p>'
+      : '<p class="cc-line"><strong>Documents &amp; certificates:</strong> not baked for this system - the official portal publishes the exact paperwork list: <a href="' + SYS[sys].url + '" target="_blank" rel="noreferrer">' + esc(SYS[sys].name) + '</a>.</p>';
+    return '<div class="cc-card">' +
+      '<div class="cmp-card-head">' + sysTagHtml(sys) + '<span class="duty-val' + (x[5] ? '' : ' none') + '">' + esc(x[5] || 'No open rate') + '</span></div>' +
+      '<div class="rcode cmp-card-code">' + esc(fmtCode(sys, x[1])) + '</div>' +
+      '<div class="cmp-card-desc">' + esc(pretty(x[2])) + '</div>' +
+      '<div class="cmp-card-meta muted">' + esc(levelName(x[1])) + (kids ? ' - ' + kids + ' sub-line' + (kids === 1 ? '' : 's') : '') + '</div>' +
+      docs +
+      '<p class="cc-line muted">General (MFN) rate as baked; preferential/FTA rates and reliefs can be lower - verify on the official portal before filing.</p>' +
+      '<p class="cc-line"><button class="file-button is-compact" data-variant="secondary" data-open="' + row.pick + '">Open full ' + esc(SYS[sys].tag) + ' detail</button></p>' +
+      '</div>';
+  };
+  return '<div class="detail-sec cc-panel"><h3>Country compare - same product, two countries side by side</h3>' +
+    '<p class="muted">Pick any two systems - duty, line detail and document pointers head to head. Data only, no advice.</p>' +
+    '<div class="cc-picks no-print"><label class="sfield"><span class="slabel">Country A</span><select id="cc-a" class="sanc-pick">' + opt(a) + '</select></label>' +
+    '<label class="sfield"><span class="slabel">Country B</span><select id="cc-b" class="sanc-pick">' + opt(b) + '</select></label></div>' +
+    '<div class="cc-grid">' + card(a) + card(b) + '</div></div>';
+}
+
 function scometKids(code) { return Object.keys(SCOMET).filter((k) => k.startsWith(code)); }
 function scometFlagHtml(e) {
   if (e[0] !== 1) return '';
@@ -35985,6 +36032,7 @@ function detailHtml(idx) {
   }
   s += linkPanelHtml(e, idx);
   s += dutyCompareHtml(e);
+  s += countryCompareHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
@@ -36065,6 +36113,9 @@ function paintDetail() {
   });
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
+  const ccA = el('cc-a'); const ccB = el('cc-b');
+  if (ccA) ccA.addEventListener('change', () => { V.ccA = +ccA.value; if (ccB && +ccA.value === +ccB.value) V.ccB = undefined; paintDetail(); });
+  if (ccB) ccB.addEventListener('change', () => { V.ccB = +ccB.value; if (ccA && +ccB.value === +ccA.value) V.ccA = undefined; paintDetail(); });
   const lcO = el('lc-origin');
   if (lcO) lcO.addEventListener('change', () => {
     V.lcOrigin = lcO.value;
