@@ -690,6 +690,7 @@ const V = { // per-view ephemeral state
   ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
   tcur: false, tcurData: null, tcurBusy: false, tcurErr: false,
   docsOpen: false,
+  sec: {},
 };
 
 function el(id) { return document.getElementById(id); }
@@ -2285,6 +2286,13 @@ function hsnVsHsHtml(db, e) {
     '<tr><th>International HS ' + esc(fmtCode(0, e[1].slice(0, 6))) + ' (WCO)</th><td>' + esc(pretty(db.entries[w][2])) + '</td></tr>' +
     '</tbody></table></div>';
 }
+// Generic collapsible section: heading button (default closed), content rendered only when open.
+function secT(id, label, html) {
+  if (!html) return '';
+  const open = !!V.sec[id];
+  return '<div class="detail-sec no-print sec-toggle-row"><p><button class="file-button is-compact" data-variant="secondary" data-sectoggle="' + id + '">' + (open ? 'Hide - ' : '') + esc(label) + '</button></p></div>' + (open ? html : '');
+}
+
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2317,34 +2325,38 @@ function detailHtml(idx) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
       '<textarea class="note-box" id="d-note" rows="3" placeholder="Your private note for this code - client name, shipment, price, anything. Saved on this device only.">' + esc(note) + '</textarea></div>';
   }
-  s += linkPanelHtml(e, idx);
-  s += dutyCompareHtml(e);
+  s += secT('link', 'Worldwide code linkage - all systems', linkPanelHtml(e, idx));
+  s += secT('cmpall', 'Compare everywhere - this product across all systems', dutyCompareHtml(e));
   s += landedCostHtml(e);
-  s += currencySlotHtml(e[0]);
+  s += secT('ccy', 'Currency trend - ' + (SYS_CCY[e[0]] || '') + ' vs USD', currencySlotHtml(e[0]));
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
-  s += tradeCardHtml(e[4], e[1]);
-  s += ftaHtml(e[1]);
-  s += certsHtml(e[4]);
-  s += addHtml(e[1], e[2]);
+  s += secT('trade', 'India trade - ' + TRADE_YEAR + ' (imports, exports, trend)', tradeCardHtml(e[4], e[1]));
+  s += secT('fta', 'FTA duty advantages (India agreements)', ftaHtml(e[1]));
+  s += secT('certs', 'Certificates & compliance (India)', certsHtml(e[4]));
+  s += secT('add', 'Anti-dumping duty (India import)', addHtml(e[1], e[2]));
   s += boomBadgeHtml(e);
   s += riskHtml(e);
-  s += rodtepHtml(e);
-  s += sancHtml();
+  s += secT('rodtep', 'Export incentive - RoDTEP rebate', rodtepHtml(e));
+  s += secT('sanc', 'Sanctions zone - is the other country clear?', sancHtml());
   const dh = docsHtml(e[4]);
   if (dh) s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="docs-toggle">' + (V.docsOpen ? 'Hide shipping documents & ports' : 'Shipping documents & India ports') + '</button></p></div>' + (V.docsOpen ? dh : '');
-  s += routeRiskHtml();
-  s += originDutyHtml(e);
+  s += secT('route', 'Shipping route safety - piracy & conflict corridors', routeRiskHtml());
+  s += secT('origin', 'Origin duty rules - does the origin change this rate?', originDutyHtml(e));
   if (path.length > 1) {
-    s += '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
+    s += secT('path', 'Classification path in ' + SYS[e[0]].tag,
+      '<div class="detail-sec"><h3>Classification path in ' + SYS[e[0]].tag + '</h3><ol class="path-list">' +
       path.map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span></li>').join('') +
-      '</ol></div>';
+      '</ol></div>');
   }
-  s += '<div class="detail-sec"><h3>Products covered under this code' + (kids.length ? ' (' + kids.length + ')' : '') + '</h3>';
-  if (kids.length) {
-    s += '<ul class="kids-list">' + kids.slice(0, 120).map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span>' + (db.entries[i][5] ? '<em class="rate">' + esc(db.entries[i][5]) + '</em>' : '') + '</li>').join('') + '</ul>';
-  } else s += '<p>Leaf tariff line - it covers exactly the product described above.</p>';
-  if (kids.length > 120) s += '<p class="muted">Showing 120 of ' + kids.length + ' sub-lines. Use the code search with prefix ' + esc(e[1]) + ' to see more.</p>';
-  s += '</div>';
+  {
+    let kh = '<div class="detail-sec"><h3>Products covered under this code' + (kids.length ? ' (' + kids.length + ')' : '') + '</h3>';
+    if (kids.length) {
+      kh += '<ul class="kids-list">' + kids.slice(0, 120).map((i) => '<li><button class="linkbtn" data-open="' + i + '">' + esc(fmtCode(db.entries[i][0], db.entries[i][1])) + '</button> <span>' + esc(pretty(db.entries[i][2])) + '</span>' + (db.entries[i][5] ? '<em class="rate">' + esc(db.entries[i][5]) + '</em>' : '') + '</li>').join('') + '</ul>';
+    } else kh += '<p>Leaf tariff line - it covers exactly the product described above.</p>';
+    if (kids.length > 120) kh += '<p class="muted">Showing 120 of ' + kids.length + ' sub-lines. Use the code search with prefix ' + esc(e[1]) + ' to see more.</p>';
+    kh += '</div>';
+    s += secT('kids', 'Products covered under this code' + (kids.length ? ' (' + kids.length + ')' : ''), kh);
+  }
   s += '<div class="detail-sec no-print ai-panel">' +
     '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. ' + (AI_PROXY_URL || builtinKeys('gemini').length || builtinKeys('groq').length ? 'AI is built in for everyone - no key needed.' : 'Needs a free AI key, set up once.') + '</p></div><span class="ai-status ' + (aiAvailable() ? 'ready' : 'offline') + '">' + (apiKey || AI_PROXY_URL ? 'Live ready' : aiAvailable() ? 'Shared AI - may hit daily limit' : 'Key needed') + '</span></div>' +
     '<div class="action-row">' +
@@ -2400,6 +2412,13 @@ function paintDetail() {
   });
   const dtg = el('docs-toggle');
   if (dtg) dtg.addEventListener('click', () => { V.docsOpen = !V.docsOpen; paintDetail(); });
+  Array.from(document.querySelectorAll('[data-sectoggle]')).forEach((b) => {
+    b.addEventListener('click', () => {
+      const id = b.getAttribute('data-sectoggle');
+      V.sec[id] = !V.sec[id];
+      paintDetail();
+    });
+  });
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
   const lcO = el('lc-origin');
@@ -2460,7 +2479,7 @@ function paintDetail() {
   });
   // currency card: fill in async
   const ccy = SYS_CCY[e[0]];
-  if (ccy && ccy !== 'USD') {
+  if (ccy && ccy !== 'USD' && el('ccy-card')) {
     fetchCurrency(e[0], () => {
       if (S.sel !== idx) return;
       const slot = el('ccy-card');
