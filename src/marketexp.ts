@@ -1,7 +1,7 @@
 // Top exporting countries by 6-digit HS code, calendar year 2025.
 // Source: UN Comtrade API (comtradeapi.un.org), every reporting country's world-export
 // table (flow X, partner World, values USD), ranked per code, top 8 kept. MARKET_WORLD_X is the
-// sum of all reporting countries' exports of the code (approximates world imports).
+// sum of all reporting countries' exports of the code (approximates world exports).
 // Baked 2026-09-24 - coverage 5700 codes from 309 reporters.
 export const MARKET_EXP_YEAR = 2025;
 export const MARKET_EXPORTERS: Record<string, [string, number][]> = {
