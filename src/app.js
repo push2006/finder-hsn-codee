@@ -14,6 +14,7 @@ import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
 import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
 import { SANC_ZONES, SANC_SRC } from './sanc';
+import { DOC_BASE_OUT, DOC_BASE_IN, DOC_EXTRA, PORTS, DOC_SRC } from './docs';
 import { SCOMET } from './scomet';
 import { RODTEP_DTA, RODTEP_SEZ } from './rodtep';
 import { ALIASES } from './aliases';
@@ -1428,6 +1429,24 @@ function portStatsTable() {
   return '<table class="fta-t"><thead><tr><th>Port</th><th class="num">2022-23</th><th class="num">2023-24</th><th class="num">2024-25 (MT)</th><th class="num">YoY</th><th>Main cargo 2024-25</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
+function docsHtml(chapter) {
+  const ch = parseInt(chapter, 10);
+  if (!ch) return '';
+  const mk = (base, side) => {
+    const rows = base.slice();
+    for (const r of DOC_EXTRA) {
+      if (ch >= r[0] && ch <= r[1] && (r[2] === 'both' || r[2] === side)) rows.push(r[3]);
+    }
+    return rows.map((t) => '<li>' + esc(t) + '</li>').join('');
+  };
+  return '<div class="detail-sec"><h3>Shipping documents &amp; India ports</h3>' +
+    '<h4>Exporting from India</h4><ul class="certs-l">' + mk(DOC_BASE_OUT, 'out') + '</ul>' +
+    '<h4>Importing into India</h4><ul class="certs-l">' + mk(DOC_BASE_IN, 'in') + '</ul>' +
+    '<h4>Main Indian ports</h4><div class="ports-grid">' + PORTS.map((pt) => '<div class="port-chip"><strong>' + esc(pt[0]) + '</strong> ' + esc(pt[1]) + ' <span class="muted">' + esc(pt[3]) + '</span></div>').join('') + '</div>' +
+    '<p class="muted">Port traffic and commodity-wise import/export statistics now live in one place - the Port trade statistics panel on the home page.</p>' +
+    '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
+}
+
 function sancHtml() {
   const keys = Object.keys(SANC_ZONES).sort();
   let opts = '<option value="">Pick the buyer / supplier country</option>';
@@ -1565,6 +1584,24 @@ function originRender(country, e) {
 }
 
 
+// ---- Payment currency rules for India trade (RBI/FEMA official, baked) ----
+// All rows from official RBI instruments; AD bank confirms case specifics. No estimates.
+const PAYC_ROWS = [
+  ["Invoicing currency", "Export and import contracts may be denominated in any freely convertible currency or in Indian rupees - there is no FEMA restriction on invoicing in INR.", "RBI Master Direction - Export of Goods and Services (rbi.org.in, id 10395)"],
+  ["Realising export proceeds", "Full export value must be realised and repatriated to India within 9 months of the export date. Rupee realisation is allowed only through a freely convertible Vostro account of a non-resident bank outside the ACU member countries, Nepal and Bhutan.", "RBI Master Direction - Export of Goods and Services"],
+  ["Rupee settlement with any country (SRVA)", "Any country's trade can be invoiced and settled fully in INR: the partner country's bank opens a Special Rupee Vostro Account with an Indian AD bank. AD banks no longer need prior RBI approval to open SRVAs. Not available for banks from FATF high-risk / non-cooperative jurisdictions.", "RBI Circular 10 of 11 Jul 2022, as amended by Circular 08 (2025-26) - approval requirement removed"],
+  ["Asian Clearing Union", "Trade with ACU members - Bangladesh, Bhutan, Iran, Maldives, Myanmar, Nepal, Pakistan, Sri Lanka - settles eligible transactions through the ACU mechanism (ACU dollar/euro/yen), not ordinary correspondent banking.", "RBI Master Direction No.16/2015-16 and A.P. (DIR) Circular 22 of 17 Mar 2020"],
+  ["Paying for imports", "Import payments may be made in any freely convertible currency or in INR through your AD Category-I bank; time limits and third-party payment rules are in the import Master Direction.", "RBI Master Direction - Import of Goods and Services (updated 12 Jan 2026, id 10201)"],
+];
+const PAYC_SRC = "From RBI's own Master Directions and circulars (rbi.org.in), baked 24 Sep 2026. 'Freely convertible currency' is not a fixed RBI list - in practice the major settlement currencies (USD, EUR, GBP, JPY and the others in the trade currencies panel). Your AD bank confirms what applies to a specific transaction; this is orientation, not legal advice.";
+
+function paycPanelHtml() {
+  return '<div class="about-box"><h3>Payment currency rules - India trade</h3>' +
+    '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Rule</th><th>What it says</th><th>Official source</th></tr></thead><tbody>' +
+    PAYC_ROWS.map((r) => '<tr><td><strong>' + esc(r[0]) + '</strong></td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<p class="muted">' + esc(PAYC_SRC) + '</p></div>';
+}
 
 
 // ---- Port-wise import & export by commodity (official BPS 2024-25, Table 2.1.3) ----
@@ -1587,8 +1624,7 @@ function portCommPanelHtml() {
     rows.map((r) => '<tr' + (r[0] === 'Total' ? ' class="lc-total"' : '') + '><td>' + esc(r[0]) + '</td><td>' + r[1].toLocaleString('en-IN') + '</td><td>' + r[2].toLocaleString('en-IN') + '</td></tr>').join('') +
     '</tbody></table></div>' +
     '<p class="muted">Scope note: the 3-year table above counts overseas + coastal cargo, so its totals are higher than this commodity table, which counts overseas cargo only. Both are from the same official BPS 2024-25 tables - the difference is scope, not an error.</p>' +
-    '<p class="muted">' + esc(PORT_COMM_SRC) + '</p>' +
-    '<h4>Port weather - live</h4>' + portWxInnerHtml() + '</div>';
+    '<p class="muted">' + esc(PORT_COMM_SRC) + '</p></div>';
 }
 
 
@@ -1597,7 +1633,7 @@ const PORT_GEO = [["Kolkata (SMPA Kolkata Dock System)",22.5490,88.3100],["Haldi
 const PORT_WX_SRC = "Live weather from Open-Meteo (free weather API, no key - NOT a government source). Wave values come from the nearest sea grid point of the marine model. For official cyclone and port warnings use IMD (mausam.imd.gov.in) and the port authority.";
 function wxCompass(deg) { const pts = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; return pts[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]; }
 function wxKm(lat1, lon1, lat2, lon2) { const dx = (lon2 - lon1) * 111.32 * Math.cos((lat1 + lat2) / 2 * Math.PI / 180), dy = (lat2 - lat1) * 110.57; return Math.sqrt(dx * dx + dy * dy); }
-function portWxInnerHtml() {
+function portWxPanelHtml() {
   const sel = V.portWx || 'Jawaharlal Nehru (JNPA)';
   let body = '';
   if (V.portWxBusy) body = '<p class="muted">Loading live weather...</p>';
@@ -1614,9 +1650,10 @@ function portWxInnerHtml() {
       (d.seaKm > 50 ? '<p class="muted">Riverine port - wave data is for the nearest sea grid point about ' + Math.round(d.seaKm) + ' km away.</p>' : '') +
       (d.at ? '<p class="muted">Data time: ' + esc(d.at) + ' IST</p>' : '');
   } else body = '<p class="muted">Pick a port for live weather.</p>';
-  return '<select class="sanc-pick" id="portwx-pick">' + PORT_GEO.map((g) => '<option value="' + esc(g[0]) + '"' + (g[0] === sel ? ' selected' : '') + '>' + esc(g[0]) + '</option>').join('') + '</select>' +
+  return '<div class="about-box"><h3>Port weather - live</h3>' +
+    '<select class="sanc-pick" id="portwx-pick">' + PORT_GEO.map((g) => '<option value="' + esc(g[0]) + '"' + (g[0] === sel ? ' selected' : '') + '>' + esc(g[0]) + '</option>').join('') + '</select>' +
     body +
-    '<p class="muted">' + esc(PORT_WX_SRC) + '</p>';
+    '<p class="muted">' + esc(PORT_WX_SRC) + '</p></div>';
 }
 function loadPortWx() {
   const sel = (el('portwx-pick') || {}).value || V.portWx || 'Jawaharlal Nehru (JNPA)';
@@ -2292,6 +2329,7 @@ function detailHtml(idx) {
   s += riskHtml(e);
   s += rodtepHtml(e);
   s += sancHtml();
+  s += docsHtml(e[4]);
   s += routeRiskHtml();
   s += originDutyHtml(e);
   if (path.length > 1) {
@@ -2418,7 +2456,7 @@ function paintDetail() {
   });
   // currency card: fill in async
   const ccy = SYS_CCY[e[0]];
-  if (ccy && ccy !== 'USD' && el('ccy-card')) {
+  if (ccy && ccy !== 'USD') {
     fetchCurrency(e[0], () => {
       if (S.sel !== idx) return;
       const slot = el('ccy-card');
@@ -2805,8 +2843,12 @@ function searchIdleHtml() {
     (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="ports-toggle">' + (V.portsOpen ? 'Hide ports - trade statistics + live weather' : 'Ports - trade statistics + live weather (13 major ports, official)') + '</button></p>' +
-    (V.portsOpen ? portCommPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
+    (V.payc ? paycPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port trade statistics' : 'Port trade statistics - 13 major ports, traffic + commodity (official)') + '</button></p>' +
+    (V.portCommOpen ? portCommPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="portwx-toggle">' + (V.portWxOpen ? 'Hide port weather' : 'Port weather - 13 major ports (live)') + '</button></p>' +
+    (V.portWxOpen ? portWxPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="rev-toggle">' + (V.rev ? 'Hide reverse lookup' : 'Reverse lookup - have a foreign code? Find the India HSN') + '</button></p>' +
     (V.rev ? revPanelHtml() : '') +
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
@@ -3053,10 +3095,14 @@ function paintIdle() {
     paintIdle();
     if (V.ships) shipsLoad();
   });
-  const pts = el('ports-toggle');
-  if (pts) pts.addEventListener('click', () => { V.portsOpen = !V.portsOpen; paintIdle(); if (V.portsOpen && !V.portWxData && !V.portWxBusy) loadPortWx(); });
+  const pcg = el('payc-toggle');
+  if (pcg) pcg.addEventListener('click', () => { V.payc = !V.payc; paintIdle(); });
+  const pco = el('portcomm-toggle');
+  if (pco) pco.addEventListener('click', () => { V.portCommOpen = !V.portCommOpen; paintIdle(); });
   const pcp = el('portcomm-pick');
   if (pcp) pcp.addEventListener('change', () => { V.portComm = pcp.value; paintIdle(); });
+  const pwx = el('portwx-toggle');
+  if (pwx) pwx.addEventListener('click', () => { V.portWxOpen = !V.portWxOpen; paintIdle(); if (V.portWxOpen && !V.portWxData && !V.portWxBusy) loadPortWx(); });
   const pwp = el('portwx-pick');
   if (pwp) pwp.addEventListener('change', () => { loadPortWx(); });
   const rt = el('rev-toggle');
