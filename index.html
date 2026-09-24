@@ -412,6 +412,13 @@ h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 .tsum-table { min-width: 0; }
 .tsum-grid .report-table-wrap { margin: 0; }
 
+/* Export checklist - numbered step list */
+.xchk-list { list-style: none; margin: 10px 0; padding: 0; }
+.xchk-list li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ds-hairline, #e3e0da); }
+.xchk-list li:last-child { border-bottom: 0; }
+.xchk-num { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--ds-accent, #2b4fe0); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.xchk-body p { margin: 3px 0 0; font-size: 13.5px; }
+
 </style>
 </head>
 <body>
@@ -35196,6 +35203,40 @@ function docsHtml(chapter) {
     '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
 }
 
+function exportChecklistHtml(e) {
+  if (e[0] !== 1) return '';
+  const ch = parseInt(e[4], 10);
+  const steps = [];
+  steps.push(['Code confirmed', 'This line <strong>' + esc(fmtCode(1, e[1])) + '</strong> - ' + esc(pretty(e[2])) + (e[5] ? ' - GST ' + esc(e[5]) : '') + '. Use this exact code on the invoice and shipping bill.']);
+  const sc = SCOMET[e[1]];
+  const kids = scometKids(e[1]);
+  if (sc || kids.length) {
+    steps.push(['Export control - ACTION NEEDED', (sc ? 'SCOMET entry ' + esc(sc[0]) + (sc[1] ? ' (' + esc(sc[1]) + ')' : '') + ' covers this line - a DGFT export authorisation is required before shipping.' : 'SCOMET-controlled lines sit under this code - check the sub-lines and get a DGFT export authorisation where they apply.') + ' Description-based SCOMET entries have no code mapping, so read the full list on DGFT.']);
+  } else {
+    steps.push(['Export control check', 'Not on the DGFT Appendix-3 code mapping. Most of the SCOMET list is description-based with no code mapping - read the official SCOMET list once against your exact product before shipping.']);
+  }
+  steps.push(['IEC - importer exporter code', 'Hold a valid IEC from DGFT (one-time, online at dgft.gov.in). No IEC, no export.']);
+  steps.push(['ICEGATE + e-Sanchit registration', 'Register on ICEGATE for filing and upload all supporting documents on e-Sanchit before customs assessment.']);
+  const outs = [];
+  if (ch) { for (const r of CERT_RULES) { if (ch >= r.from && ch <= r.to && r.side === 'out') outs.push(r); } }
+  if (outs.length) {
+    steps.push(['Product certificates (' + outs.length + ' for this chapter)', outs.map((r) => '<strong>' + esc(r.who) + '</strong>: ' + esc(r.what) + ' <span class="muted">(' + esc(r.law) + ')</span>').join('<br>')]);
+  } else {
+    steps.push(['Product certificates', 'No chapter-specific export certificate rule is baked for this chapter - the general set below still applies.']);
+  }
+  const docs = DOC_BASE_OUT.slice();
+  if (ch) { for (const r of DOC_EXTRA) { if (ch >= r[0] && ch <= r[1] && (r[2] === 'both' || r[2] === 'out')) docs.push(r[3]); } }
+  steps.push(['Shipping documents (' + docs.length + ')', docs.map((t) => esc(t)).join('<br>')]);
+  steps.push(['RoDTEP rebate', 'Declare the RoDTEP intent on the shipping bill - the rebate is credited as e-scrips on ICEGATE. The rate for this line, where notified, is in the incentive section above.']);
+  steps.push(['GST route', 'Export under LUT (zero-rated, no IGST paid) or pay IGST and claim the refund. Pick one per shipment and keep it consistent with your GST filings.']);
+  steps.push(['FTA rate at destination', 'If the buyer claims an India FTA preferential rate (UAE, Australia and others - see the FTA section above where it applies), apply for the certificate of origin on the DGFT CoO portal (coo.dgft.gov.in) before sailing.']);
+  steps.push(['Payment currency', 'Invoice in a currency the RBI rules allow for the destination - the payment currency panel on the home page lists the permitted options and the rupee-invoicing route.']);
+  return '<div class="detail-sec xchk-panel"><h3>Export checklist - India, step by step</h3>' +
+    '<p class="muted">Ordered steps to ship this product out of India, with this code\'s own control flags, certificates and documents folded in. The customs broker confirms the live list for a real shipment.</p>' +
+    '<ol class="xchk-list">' + steps.map((st, i) => '<li><div class="xchk-num">' + (i + 1) + '</div><div class="xchk-body"><strong>' + st[0] + '</strong><p>' + st[1] + '</p></div></li>').join('') + '</ol>' +
+    '<p class="muted">Sources: DGFT (IEC, SCOMET, CoO), CBIC ICEGATE/e-Sanchit practice, APEDA export-documentation guidance, RBI payment-currency rules. ' + esc(DOC_SRC) + '</p></div>';
+}
+
 function sancHtml() {
   const keys = Object.keys(SANC_ZONES).sort();
   let opts = '<option value="">Pick the buyer / supplier country</option>';
@@ -36080,6 +36121,7 @@ function detailHtml(idx) {
   s += rodtepHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
+  s += exportChecklistHtml(e);
   s += routeRiskHtml();
   s += originDutyHtml(e);
   if (path.length > 1) {

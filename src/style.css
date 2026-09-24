@@ -397,3 +397,10 @@ h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 .tsum-panel p { margin: 6px 0; }
 .tsum-table { min-width: 0; }
 .tsum-grid .report-table-wrap { margin: 0; }
+
+/* Export checklist - numbered step list */
+.xchk-list { list-style: none; margin: 10px 0; padding: 0; }
+.xchk-list li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ds-hairline, #e3e0da); }
+.xchk-list li:last-child { border-bottom: 0; }
+.xchk-num { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--ds-accent, #2b4fe0); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.xchk-body p { margin: 3px 0 0; font-size: 13.5px; }
