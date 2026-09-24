@@ -12,6 +12,7 @@ import { expandAliases, draftGst } from './ai-agent.mjs';
 const step = async (n, f) => { try { const r = await f(); console.log('[ok]', n, JSON.stringify(r)); return r; } catch (e) { console.log('[skip]', n, e.message); return null; } };
 await step('trade+cleanup', runRefresh);
 await step('comtrade-partners', bakePartners);
+await step('comtrade-market', (await import('./comtrade-market.mjs')).bakeMarket);
 const sr = await step('sanctions', refreshSanctions);
 if (sr) {
   const HP = 'state/health.json', h = fs.existsSync(HP) ? JSON.parse(fs.readFileSync(HP, 'utf8')) : {};
