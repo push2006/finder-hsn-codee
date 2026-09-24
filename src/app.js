@@ -2317,6 +2317,7 @@ function detailHtml(idx) {
   s += dutyCompareHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
+  s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
   s += tradeCardHtml(e[4], e[1]);
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
@@ -2386,6 +2387,12 @@ function paintDetail() {
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
     paintLanded(e);
   }
+  const tcg = el('tcur-toggle');
+  if (tcg) tcg.addEventListener('click', () => {
+    V.tcur = !V.tcur;
+    paintDetail();
+    if (V.tcur) tcurLoad();
+  });
   const sancP = el('sanc-pick');
   if (sancP) sancP.addEventListener('change', () => { sancRender(sancP.value); });
   const lcO = el('lc-origin');
@@ -2833,8 +2840,6 @@ function searchIdleHtml() {
     (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide trade currencies' : 'Trade currencies - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' +
-    (V.tcur ? '<div id="tcur-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
     (V.payc ? paycPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port-wise trade' : 'Port-wise import & export by commodity - 13 major ports (official)') + '</button></p>' +
@@ -2997,11 +3002,11 @@ function paintTcur() {
   const slot = el('tcur-slot');
   if (!slot) return;
   if (V.tcurBusy && !V.tcurData) {
-    slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3><p class="muted">Loading live rates...</p></div>';
+    slot.innerHTML = '<div class="about-box"><h3>Currency trends - INR vs the world</h3><p class="muted">Loading live rates...</p></div>';
     return;
   }
   if (V.tcurErr) {
-    slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3><p class="muted">Could not load live currency rates - check the connection and tap Retry.</p><p><button class="file-button is-compact" data-variant="secondary" id="tcur-retry">Retry</button></p></div>';
+    slot.innerHTML = '<div class="about-box"><h3>Currency trends - INR vs the world</h3><p class="muted">Could not load live currency rates - check the connection and tap Retry.</p><p><button class="file-button is-compact" data-variant="secondary" id="tcur-retry">Retry</button></p></div>';
     const rb = el('tcur-retry');
     if (rb) rb.addEventListener('click', () => { V.tcurErr = false; tcurLoad(); });
     return;
@@ -3011,7 +3016,7 @@ function paintTcur() {
   const fmtR = (v) => (v >= 5 ? v.toFixed(2) : v.toFixed(3));
   const cell = (p2) => '<span style="color:' + (p2 > 0.05 ? '#a33' : p2 < -0.05 ? '#273' : 'inherit') + '">' + (p2 >= 0 ? '+' : '') + p2.toFixed(1) + '%</span>';
   const weaker = d.rows.filter((r) => r.p30 > 0).length;
-  slot.innerHTML = '<div class="about-box"><h3>Trade currencies - INR vs the world</h3>' +
+  slot.innerHTML = '<div class="about-box"><h3>Currency trends - INR vs the world</h3>' +
     '<p class="muted">Live rates for ' + esc(d.date) + '. In the last 30 days the rupee weakened against ' + weaker + ' of ' + d.rows.length + ' major trade currencies.</p>' +
     '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Currency</th><th>Today (1 unit = INR)</th><th>30 days</th><th>1 year</th></tr></thead><tbody>' +
     d.rows.map((r) => '<tr><td><strong>' + r.ccy + '</strong> ' + esc(r.name) + '</td><td>' + fmtR(r.cur) + '</td><td>' + cell(r.p30) + '</td><td>' + cell(r.p365) + '</td></tr>').join('') +
@@ -3086,12 +3091,6 @@ function paintIdle() {
     if (!V.ships && shipsTimer) { clearTimeout(shipsTimer); shipsTimer = null; }
     paintIdle();
     if (V.ships) shipsLoad();
-  });
-  const tcg = el('tcur-toggle');
-  if (tcg) tcg.addEventListener('click', () => {
-    V.tcur = !V.tcur;
-    paintIdle();
-    if (V.tcur) tcurLoad();
   });
   const pcg = el('payc-toggle');
   if (pcg) pcg.addEventListener('click', () => { V.payc = !V.payc; paintIdle(); });
