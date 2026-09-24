@@ -8,6 +8,7 @@ import { GST_MAP } from './gstmap';
 import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
+import { MARKET_IMPORTERS, MARKET_WORLD, MARKET_DATA_YEAR } from './marketdata';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
@@ -680,6 +681,7 @@ const S = {
   clientMode: false,
 };
 const V = { // per-view ephemeral state
+  mf: false, mfTop: null,
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
@@ -2386,6 +2388,38 @@ function hsnVsHsHtml(db, e) {
     '<tr><th>International HS ' + esc(fmtCode(0, e[1].slice(0, 6))) + ' (WCO)</th><td>' + esc(pretty(db.entries[w][2])) + '</td></tr>' +
     '</tbody></table></div>';
 }
+
+function mfTopLines() {
+  if (V.mfTop) return V.mfTop;
+  const arr = Object.keys(MARKET_WORLD).map((c) => [c, MARKET_WORLD[c]]);
+  arr.sort((a, b) => b[1] - a[1]);
+  V.mfTop = arr.slice(0, 10);
+  return V.mfTop;
+}
+function mfIdxOf(c6) { return S.db.keyToIdx.get('0:' + c6); }
+function mfDescOf(c6) { const idx = mfIdxOf(c6); return idx !== undefined ? pretty(S.db.entries[idx][2]) : 'HS ' + c6; }
+function mfPanelHtml() {
+  const rows = mfTopLines();
+  const list = '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>#</th><th>HS</th><th>Product</th><th>World imports ' + MARKET_DATA_YEAR + '</th></tr></thead><tbody>' +
+    rows.map((r, i) => { const idx = mfIdxOf(r[0]); return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r[0]) + '</td><td>' + esc(mfDescOf(r[0])) + '</td><td>' + esc(fmtUsd(r[1])) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  return '<div class="chip-sec tsum-panel"><h3>Market finder - top importing countries for any product</h3>' +
+    '<p>Type your product or code in the search above and open it - every code page now shows the <strong>top importing countries</strong> for that product, with each country\'s share of world imports. Use it to pick your best export markets.</p>' +
+    '<h4>World\'s biggest import lines ' + MARKET_DATA_YEAR + '</h4>' + list +
+    '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026). Imports CIF, USD, 6-digit international lines - ' + Object.keys(MARKET_IMPORTERS).length.toLocaleString('en-US') + ' products covered. Every national 8/10-digit code rolls up to its 6-digit parent shown here. Tap a row for the full code detail.</p></div>';
+}
+function marketFinderHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const rows = MARKET_IMPORTERS[c6];
+  if (!rows || !rows.length) return '';
+  const world = MARKET_WORLD[c6] || 0;
+  const pct = (v) => world > 0 ? ((v / world) * 100).toFixed(1) + '% of world' : '';
+  const body = rows.map((r, i) => '<tr' + (r[0] === 'India' ? ' class="mf-in"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r[0]) + (r[0] === 'India' ? ' &#127470;&#127475;' : '') + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + esc(pct(r[1])) + '</td></tr>').join('');
+  return '<div class="detail-sec mf-panel"><h3>Market finder - top importing countries, ' + MARKET_DATA_YEAR + '</h3>' +
+    '<p>World imported <strong>' + esc(fmtUsd(world)) + '</strong> of <strong>' + esc(mfDescOf(c6)) + ' (HS ' + c6 + ')</strong> in ' + MARKET_DATA_YEAR + '. These countries bought the most - your biggest potential export markets:</p>' +
+    '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>#</th><th>Importing country</th><th>Imports ' + MARKET_DATA_YEAR + '</th><th>Share</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026), imports CIF in USD. International 6-digit level - this national line rolls up to HS ' + c6 + '. Data only, no advice.</p></div>';
+}
+
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2421,6 +2455,7 @@ function detailHtml(idx) {
   s += linkPanelHtml(e, idx);
   s += dutyCompareHtml(e);
   s += countryCompareHtml(e);
+  s += marketFinderHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
@@ -2950,6 +2985,8 @@ function searchIdleHtml() {
     (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="tsum-toggle">' + (V.tsum ? 'Hide India trade summary' : 'India trade ' + TRADE_YEAR + ' in words - top imports &amp; exports') + '</button></p>' +
     (V.tsum ? tsumPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="mf-toggle">' + (V.mf ? 'Hide market finder' : 'Market finder - top importing countries for any product') + '</button></p>' +
+    (V.mf ? mfPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -3194,6 +3231,8 @@ function paintIdle() {
   if (bm) bm.addEventListener('click', () => { V.boom = !V.boom; paintIdle(); });
   const tsm = el('tsum-toggle');
   if (tsm) tsm.addEventListener('click', () => { V.tsum = !V.tsum; paintIdle(); });
+  const mft = el('mf-toggle');
+  if (mft) mft.addEventListener('click', () => { V.mf = !V.mf; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });

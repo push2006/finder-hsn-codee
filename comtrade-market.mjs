@@ -28,7 +28,7 @@ async function fetchJson(url) {
 }
 
 async function reporterList() {
-  const res = await fetch('https://comtradeapi.un.org/files/v1/app/reference/reporterAreas.json');
+  const res = await fetch('https://comtradeapi.un.org/files/v1/app/reference/partnerAreas.json');
   const d = await res.json();
   const out = {};
   for (const r of d.results || []) {
@@ -122,16 +122,24 @@ function writeOutputs(st, reporters, year) {
       .slice(0, 8);
     if (arr.length) top[code] = arr;
   }
+  const world = {};
+  for (const [code, byRep] of Object.entries(st.rows)) {
+    const t = Object.values(byRep).reduce((a, b) => a + b, 0);
+    if (t > 0) world[code] = Math.round(t);
+  }
   const codes = Object.keys(top).sort();
   let out = `// Top importing countries by 6-digit HS code, calendar year ${year}.\n` +
     `// Source: UN Comtrade API (comtradeapi.un.org), every reporting country's world-import\n` +
-    `// table (flow M, partner World, values USD), ranked per code, top 8 kept.\n` +
+    `// table (flow M, partner World, values USD), ranked per code, top 8 kept. MARKET_WORLD is the\n` +
+    `// sum of all reporting countries' imports of the code (approximates world imports).\n` +
     `// Baked ${new Date().toISOString().slice(0, 10)} - coverage ${codes.length} codes from ${st.done.length} reporters.\n` +
     `export const MARKET_DATA_YEAR = ${year};\n` +
     `export const MARKET_IMPORTERS: Record<string, [string, number][]> = {\n`;
   for (const c of codes) {
     out += `  '${c}': [${top[c].map((p) => '[' + JSON.stringify(p[0]) + ', ' + p[1] + ']').join(', ')}],\n`;
   }
+  out += `};\nexport const MARKET_WORLD: Record<string, number> = {\n`;
+  for (const c of Object.keys(world).sort()) out += `  '${c}': ${world[c]},\n`;
   fs.mkdirSync('state', { recursive: true });
   fs.writeFileSync(STATE, JSON.stringify(st) + '\n');
   fs.writeFileSync(OUT, out + '};\n');
