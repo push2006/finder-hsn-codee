@@ -64202,7 +64202,8 @@ async function briefRun(e) {
     const yrs = tr.filter((r) => r[1] || r[2]);
     if (yrs.length >= 2) {
       const a = yrs[0], b = yrs[yrs.length - 1];
-      facts.push('India exports moved from ' + fmtUsd(a[1] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[1] || 0) + ' (' + b[0] + ').');
+      if ((a[2] || 0) > 0 || (b[2] || 0) > 0) facts.push('India exports of this line moved from ' + fmtUsd(a[2] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[2] || 0) + ' (' + b[0] + ').');
+      if ((a[1] || 0) > 0 || (b[1] || 0) > 0) facts.push('India imports of this line moved from ' + fmtUsd(a[1] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[1] || 0) + ' (' + b[0] + ').');
     }
   }
   const ss = TRADE_SEASON[c6];
