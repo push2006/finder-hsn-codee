@@ -2090,8 +2090,8 @@ function tplKpis(e, g, trade6, trade, rated) {
   const chips = [];
   if (e[0] === 1 && g) chips.push(['India IGST', g[0], 'GST 2.0, Notif. 9/2025-IT(R)']);
   else if (e[5]) chips.push(['Duty - ' + SYS[e[0]].tag, e[5], 'General / MFN']);
-  if (trade6) chips.push(['Imports ' + TRADE_YEAR, fmtUsd(trade6[0]), 'CIF, USD, Comtrade']);
-  if (trade6) chips.push(['Exports ' + TRADE_YEAR, fmtUsd(trade6[1]), 'USD, Comtrade']);
+  if (trade6) chips.push(['Imports ' + TRADE_YEAR, fmtUsd(trade6[0]), 'CIF, USD']);
+  if (trade6) chips.push(['Exports ' + TRADE_YEAR, fmtUsd(trade6[1]), 'USD']);
   if (trade6) chips.push(['Balance', trade6[1] >= trade6[0] ? 'Net exporter' : 'Net importer', 'HS ' + e[1].slice(0, 6) + ' level']);
   chips.push(['Systems', String(rated.length) + ' with open rates', 'of ' + SYS.length + ' official']);
   return '<div class="tpl-kpis">' + chips.map((c) => '<div class="tpl-kpi"><div class="k">' + esc(c[0]) + '</div><div class="v">' + esc(c[1]) + '</div><div class="s">' + esc(c[2]) + '</div></div>').join('') + '</div>';
