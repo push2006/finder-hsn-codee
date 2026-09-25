@@ -13,6 +13,7 @@ import { MARKET_IMPORTERS, MARKET_WORLD, MARKET_DATA_YEAR } from './marketdata';
 import { SANCGAP, SANCGAP_YEAR } from './sancgap';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
+import { WORLD_PORTS } from './worldports';
 import { HS22_FWD, HS22_REV } from './hscorr';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
@@ -712,6 +713,7 @@ const V = { // per-view ephemeral state
   ccy: {}, // sys -> info | 'err'
   ccyImpact: null, // USD->INR series for the currency-impact card | 'err'
   ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
+  transit: false, transitA: null, transitB: null, transitQA: '', transitQB: '',
   tcur: false, tcurData: null, tcurBusy: false, tcurErr: false,
 };
 
@@ -3779,8 +3781,10 @@ function searchIdleHtml() {
     (V.tsum ? tsumPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="cp-toggle">' + (V.cp ? 'Hide country profile' : 'Country profile - what any country buys and sells most') + '</button></p>' +
     (V.cp ? countryProfileHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near major ports worldwide - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="transit-toggle">' + (V.transit ? 'Hide sea transit time' : 'Sea transit time - port to port, worldwide') + '</button></p>' +
+    (V.transit ? transitPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
     (V.payc ? paycPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="portcomm-toggle">' + (V.portCommOpen ? 'Hide port trade statistics' : 'Port trade statistics - 13 major ports, traffic + commodity (official)') + '</button></p>' +
@@ -3809,7 +3813,75 @@ function changesBannerHtml() {
     (S.changes.length > 10 ? '<p class="muted">and ' + (S.changes.length - 10) + ' more</p>' : '') +
     '<button class="file-button is-compact" data-variant="secondary" id="changes-ok">Got it</button></div>';
 }
-// ---- Live ships near India ports (AISStream free feed via ais-proxy.js) ----
+
+// ---- Sea transit time: port to port worldwide (NGA World Port Index coords) ----
+function portSearch(q) {
+  q = q.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const out = [];
+  for (let i = 0; i < WORLD_PORTS.length; i++) {
+    const p = WORLD_PORTS[i];
+    if (p[0].toLowerCase().indexOf(q) >= 0 || p[1].toLowerCase().indexOf(q) >= 0 || p[2].toLowerCase().indexOf(q) === 0) out.push(i);
+    if (out.length >= 60) break;
+  }
+  out.sort((a, b) => WORLD_PORTS[b][5] - WORLD_PORTS[a][5]);
+  return out.slice(0, 8);
+}
+function haversineNm(a, b) {
+  const r = Math.PI / 180;
+  const h = Math.sin((b[3] - a[3]) * r / 2) ** 2 + Math.cos(a[3] * r) * Math.cos(b[3] * r) * Math.sin((b[4] - a[4]) * r / 2) ** 2;
+  return (12742 * Math.asin(Math.sqrt(h))) / 1.852;
+}
+function portName(p) { return p[0] + ', ' + p[1] + ' (' + p[2] + ')'; }
+function transitPickHtml(side) {
+  const sel = side === 'a' ? V.transitA : V.transitB;
+  const q = side === 'a' ? V.transitQA : V.transitQB;
+  if (sel !== null) {
+    return '<div class="chip-row"><button class="chip on" data-transit-clear="' + side + '">' + esc(portName(WORLD_PORTS[sel])) + ' &times;</button></div>';
+  }
+  const hits = portSearch(q);
+  let sug = '';
+  if (q.trim().length >= 2 && !hits.length) sug = '<p class="muted">No port match - try the port name, country or UN/LOCODE.</p>';
+  if (hits.length) sug = '<div class="chip-row">' + hits.map((i) => '<button class="chip" data-transit-pick="' + side + ':' + i + '">' + esc(portName(WORLD_PORTS[i])) + '</button>').join('') + '</div>';
+  return '<input class="sanc-pick" style="width:100%" id="transit-q-' + side + '" placeholder="Type a port name, country or LOCODE" value="' + esc(q) + '" autocomplete="off">' + sug;
+}
+function transitPanelHtml() {
+  let result = '';
+  if (V.transitA !== null && V.transitB !== null) {
+    const a = WORLD_PORTS[V.transitA], b = WORLD_PORTS[V.transitB];
+    if (V.transitA === V.transitB) result = '<p class="muted">Same port picked twice - pick two different ports.</p>';
+    else {
+      const nm = haversineNm(a, b);
+      const km = Math.round(nm * 1.852).toLocaleString('en-IN');
+      const slow = nm / (12 * 24), fast = nm / (18 * 24);
+      result = '<p style="font-size:1.05rem"><strong>' + Math.round(nm).toLocaleString('en-IN') + ' nautical miles</strong> (' + km + ' km) straight-line' +
+        ' - about <strong>' + fast.toFixed(1) + ' to ' + slow.toFixed(1) + ' days</strong> at a typical 18 to 12 knot service speed.</p>';
+    }
+  } else result = '<p class="muted">Pick both ports for the distance and day range.</p>';
+  return '<div class="about-box"><h3>Sea transit time - port to port, worldwide</h3>' +
+    '<div class="grid-2col"><div><h4>From</h4>' + transitPickHtml('a') + '</div><div><h4>To</h4>' + transitPickHtml('b') + '</div></div>' +
+    result +
+    '<p class="muted">Straight-line sea distance from official port coordinates (NGA World Port Index, ' + WORLD_PORTS.length.toLocaleString('en-IN') + ' ports). Real routes run longer around land and through canals, and a service can call at other ports on the way - treat the day range as a floor, not a schedule. Your forwarder\'s quote has the real transit time.</p>' +
+    '<h4>Track a container</h4><p class="muted">Have a container or booking number? Paste it into a free meta-search: <a href="https://www.track-trace.com/container" target="_blank" rel="noreferrer">track-trace.com/container</a> or <a href="https://www.searates.com/container/tracking/" target="_blank" rel="noreferrer">searates.com/container/tracking</a> - they query the shipping line for you, no login.</p>' +
+    '</div>';
+}
+function bindTransit() {
+  const qa = el('transit-q-a'), qb = el('transit-q-b');
+  if (qa) qa.addEventListener('input', () => { V.transitQA = qa.value; paintIdle(); const n = el('transit-q-a'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
+  if (qb) qb.addEventListener('input', () => { V.transitQB = qb.value; paintIdle(); const n = el('transit-q-b'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-transit-pick]'), (b) => {
+    b.addEventListener('click', () => {
+      const t = b.getAttribute('data-transit-pick').split(':');
+      if (t[0] === 'a') { V.transitA = Number(t[1]); V.transitQA = ''; } else { V.transitB = Number(t[1]); V.transitQB = ''; }
+      paintIdle();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-transit-clear]'), (b) => {
+    b.addEventListener('click', () => { if (b.getAttribute('data-transit-clear') === 'a') V.transitA = null; else V.transitB = null; paintIdle(); });
+  });
+}
+
+// ---- Live ships near major ports worldwide (AISStream free feed via ais-proxy.js) ----
 let shipsTimer = null;
 function shipsAgo(sec) {
   if (sec < 60) return sec + 's ago';
@@ -3851,11 +3923,11 @@ function paintShips() {
   const slot = el('ships-slot');
   if (!slot) return;
   if (V.shipsBusy && !V.shipsData) {
-    slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3><p class="muted">Connecting to the live ship feed - the free tracking server sleeps when nobody is watching, so the first load can take up to a minute. Hang on...</p></div>';
+    slot.innerHTML = '<div class="about-box"><h3>Live ships near major ports worldwide</h3><p class="muted">Connecting to the live ship feed - the free tracking server sleeps when nobody is watching, so the first load can take up to a minute. Hang on...</p></div>';
     return;
   }
   if (V.shipsErr) {
-    slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3><p class="muted">' +
+    slot.innerHTML = '<div class="about-box"><h3>Live ships near major ports worldwide</h3><p class="muted">' +
       (V.shipsErr === 'setup'
         ? 'Live tracking is being set up on our side - please check back soon.'
         : 'Could not reach the live ship feed. The free tracking server sleeps when idle and can take up to a minute to wake - tap Retry.') +
@@ -3877,7 +3949,7 @@ function paintShips() {
       d.vessels.map((v) => '<tr><td><strong>' + esc(v.name || 'MMSI ' + v.mmsi) + '</strong></td><td>' + esc(v.type || '-') + '</td><td>' + esc(v.flag || '-') + '</td><td>' + (v.sog !== null ? v.sog + ' kn' : '-') + '</td><td>' + esc(v.dest || '-') + '</td><td>' + esc(v.eta || '-') + '</td><td>' + esc((d.ports.find((x) => x.code === v.port) || {}).name || v.port) + '</td><td>' + esc(shipsAgo(v.seenAgoSec)) + '</td></tr>').join('') +
       '</tbody></table></div>';
   }
-  slot.innerHTML = '<div class="about-box"><h3>Live ships near India ports</h3>' +
+  slot.innerHTML = '<div class="about-box"><h3>Live ships near major ports worldwide</h3>' +
     '<p class="muted">' + d.count + ' vessel' + (d.count === 1 ? '' : 's') + ' reporting - updated ' + new Date(d.updated).toLocaleTimeString() + (V.shipsBusy ? ' - refreshing...' : ' - auto-refreshes every 60 seconds') + '.</p>' +
     '<div class="chip-row">' + chips + '</div>' + rows +
     '<p class="muted">Every vessel broadcasts its own position by AIS radio; volunteer shore stations relay it through the free AISStream community feed. Coastal coverage only - a ship mid-ocean appears when it nears land. Destination and ETA are keyed in by the crew and can be stale. Free data, not for navigation.</p></div>';
@@ -4040,6 +4112,9 @@ function paintIdle() {
   });
   const bch = el('boom-ch');
   if (bch) bch.addEventListener('change', () => { V.boomCh = bch.value; paintIdle(); });
+  const trt = el('transit-toggle');
+  if (trt) trt.addEventListener('click', () => { V.transit = !V.transit; paintIdle(); });
+  bindTransit();
   const stg = el('ships-toggle');
   if (stg) stg.addEventListener('click', () => {
     V.ships = !V.ships;

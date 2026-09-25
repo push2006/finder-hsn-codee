@@ -48,7 +48,41 @@ const AIS_PORTS = [
   { code: 'INPRT', name: 'Paradip', lat: 20.3, lon: 86.62 },
   { code: 'INHAL', name: 'Haldia / Kolkata', lat: 21.75, lon: 87.95, wide: true },
 ];
-const AIS_BOXES = AIS_PORTS.map((p) => {
+// Major world gateways (top container/bulk hubs), same box style as India.
+const AIS_PORTS_WORLD = [
+  { code: 'SGSIN', name: 'Singapore', lat: 1.26, lon: 103.82 },
+  { code: 'CNSHA', name: 'Shanghai', lat: 31.22, lon: 121.5 },
+  { code: 'CNNGB', name: 'Ningbo-Zhoushan', lat: 29.87, lon: 121.9 },
+  { code: 'CNSZX', name: 'Shenzhen', lat: 22.5, lon: 114.3 },
+  { code: 'CNTSN', name: 'Tianjin', lat: 38.98, lon: 117.75 },
+  { code: 'CNTAO', name: 'Qingdao', lat: 36.05, lon: 120.32 },
+  { code: 'HKHKG', name: 'Hong Kong', lat: 22.3, lon: 114.15 },
+  { code: 'KRPUS', name: 'Busan', lat: 35.08, lon: 129.08 },
+  { code: 'JPYOK', name: 'Tokyo / Yokohama', lat: 35.55, lon: 139.72 },
+  { code: 'TWKHH', name: 'Kaohsiung', lat: 22.6, lon: 120.28 },
+  { code: 'MYPKG', name: 'Port Klang', lat: 3.0, lon: 101.37 },
+  { code: 'MYTPP', name: 'Tanjung Pelepas', lat: 1.35, lon: 103.55 },
+  { code: 'LKCMB', name: 'Colombo', lat: 6.95, lon: 79.84 },
+  { code: 'AEJEA', name: 'Jebel Ali (Dubai)', lat: 25.0, lon: 55.05 },
+  { code: 'NLRTM', name: 'Rotterdam', lat: 51.95, lon: 4.05 },
+  { code: 'BEANR', name: 'Antwerp', lat: 51.3, lon: 4.35 },
+  { code: 'DEHAM', name: 'Hamburg', lat: 53.9, lon: 9.95 },
+  { code: 'DEBRV', name: 'Bremerhaven', lat: 53.57, lon: 8.56 },
+  { code: 'ESVLC', name: 'Valencia', lat: 39.45, lon: -0.32 },
+  { code: 'ESALG', name: 'Algeciras', lat: 36.1, lon: -5.43 },
+  { code: 'GRPIR', name: 'Piraeus', lat: 37.94, lon: 23.64 },
+  { code: 'GBFXT', name: 'Felixstowe / London', lat: 51.95, lon: 1.32 },
+  { code: 'USLAX', name: 'Los Angeles', lat: 33.72, lon: -118.27 },
+  { code: 'USLGB', name: 'Long Beach', lat: 33.75, lon: -118.2 },
+  { code: 'USNYC', name: 'New York / New Jersey', lat: 40.64, lon: -74.02 },
+  { code: 'USSAV', name: 'Savannah', lat: 32.08, lon: -81.06 },
+  { code: 'USHOU', name: 'Houston', lat: 29.7, lon: -95.2 },
+  { code: 'BRSSZ', name: 'Santos', lat: -23.97, lon: -46.3 },
+  { code: 'ZADUR', name: 'Durban', lat: -29.87, lon: 31.06 },
+  { code: 'EGSUZ', name: 'Suez Canal (both ends)', lat: 30.4, lon: 32.35, wide: true },
+];
+const AIS_PORTS_ALL = AIS_PORTS.concat(AIS_PORTS_WORLD);
+const AIS_BOXES = AIS_PORTS_ALL.map((p) => {
   const d = p.wide ? 0.6 : 0.35;
   return [[p.lat - d, p.lon - d], [p.lat + d, p.lon + d]];
 });
@@ -83,7 +117,7 @@ function aisDistKm(aLat, aLon, bLat, bLon) {
 }
 function aisNearestPort(lat, lon) {
   let best = null, bd = 1e9;
-  for (const p of AIS_PORTS) {
+  for (const p of AIS_PORTS_ALL) {
     const d = aisDistKm(lat, lon, p.lat, p.lon);
     if (d < bd) { bd = d; best = p; }
   }
@@ -273,7 +307,7 @@ http.createServer(async (req, res) => {
     const counts = aisPerPort();
     return send(res, 200, {
       ok: true, warming: aisWarming(), updated: new Date().toISOString(), count: out.length,
-      ports: AIS_PORTS.map((p) => ({ code: p.code, name: p.name, count: counts[p.code] || 0 })),
+      ports: AIS_PORTS_ALL.map((p) => ({ code: p.code, name: p.name, count: counts[p.code] || 0 })),
       vessels: out.slice(0, 150),
     });
   }

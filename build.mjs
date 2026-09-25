@@ -59,6 +59,7 @@ const rodtep = read('rodtep.ts')
   .replace('export const RODTEP_SEZ: Record<string, [string, string, string]> =', 'const RODTEP_SEZ =');
 const scomet = plain('scomet.ts', 'SCOMET');
 const alias = plain('aliases.ts', 'ALIASES');
+const worldports = plain('worldports.ts', 'WORLD_PORTS');
 const hscorr = read('hscorr.ts')
   .replace('export const HS22_FWD: Record<string, string[]> =', 'const HS22_FWD =')
   .replace('export const HS22_REV: Record<string, string[]> =', 'const HS22_REV =');
@@ -105,6 +106,7 @@ ${trade6}
 ${tradepartners}
 ${marketexp}
 ${marketdata}
+${worldports}
 ${sancgap}
 ${tradetrend}
 ${tradeseason}
