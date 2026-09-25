@@ -78,7 +78,8 @@ async function commitFiles(files, message) {
 
 function readDataset() {
   let b64 = '';
-  for (let n = 0; n < 66; n++) {
+  const files = fs.readdirSync('src').filter((f) => /^datachunk\d+\.ts$/.test(f)).length;
+  for (let n = 0; n < files; n++) {
     const t = fs.readFileSync(`src/datachunk${n}.ts`, 'utf8');
     const m = t.match(/"([A-Za-z0-9+/=]+)"/);
     if (!m) throw new Error(`datachunk${n}.ts unreadable`);
@@ -89,7 +90,8 @@ function readDataset() {
 
 function writeDataset(rows) {
   const b64 = zlib.gzipSync(Buffer.from(JSON.stringify(rows), 'utf8'), { level: 9 }).toString('base64');
-  const CHUNKS = 66, step = Math.ceil(b64.length / CHUNKS);
+  const CHUNKS = Math.max(66, fs.readdirSync('src').filter((f) => /^datachunk\d+\.ts$/.test(f)).length);
+  const step = Math.ceil(b64.length / CHUNKS);
   const files = [];
   for (let n = 0; n < CHUNKS; n++) {
     const content = `export const CHUNK${n} = "${b64.slice(n * step, (n + 1) * step)}";\n`;

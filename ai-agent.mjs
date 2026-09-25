@@ -11,7 +11,7 @@ export const ask = async (prompt) => {
   return JSON.parse(t.replace(/^```[a-z]*\n?/i, '').replace(/```\s*$/, '').trim());
 };
 function descriptions() {
-  let b = ''; for (let n = 0; n < 66; n++) b += fs.readFileSync(`src/datachunk${n}.ts`, 'utf8').match(/"([A-Za-z0-9+/=]+)"/)[1];
+  let b = ''; for (let n = 0; fs.existsSync(`src/datachunk${n}.ts`); n++) b += fs.readFileSync(`src/datachunk${n}.ts`, 'utf8').match(/"([A-Za-z0-9+/=]+)"/)[1];
   return JSON.parse(zlib.gunzipSync(Buffer.from(b, 'base64')).toString()).map((r) => String(r[2] || '').toLowerCase());
 }
 
