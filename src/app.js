@@ -686,6 +686,7 @@ const V = { // per-view ephemeral state
   mf: false, mfTop: null,
   sgap: false, sgapTop: null,
   tdrop: false,
+  pw: false,
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
@@ -2446,6 +2447,37 @@ function compShareHtml(e) {
     '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026), exports FOB in USD. International 6-digit level - this national line rolls up to HS ' + c6 + '. Data only, no advice.</p></div>';
 }
 
+// Price watch: India export unit-value (USD/kg) moves 2024 -> 2025, from baked Comtrade trend data.
+function priceMoves() {
+  if (V.priceMoves) return V.priceMoves;
+  const up = [], down = [];
+  for (const c6 in TRADE_TREND) {
+    const rows = TRADE_TREND[c6];
+    let u24 = null, u25 = null, x25 = 0;
+    for (const r of rows) {
+      if (r[0] === 2024 && r[4] > 0) u24 = r[2] / r[4];
+      if (r[0] === 2025 && r[4] > 0) { u25 = r[2] / r[4]; x25 = r[2]; }
+    }
+    if (u24 === null || u25 === null || x25 < 50000000) continue;
+    const chg = (u25 - u24) / u24 * 100;
+    if (chg >= 30) up.push([c6, chg, u24, u25, x25]);
+    else if (chg <= -30) down.push([c6, chg, u24, u25, x25]);
+  }
+  up.sort((a, b) => b[1] - a[1]);
+  down.sort((a, b) => a[1] - b[1]);
+  V.priceMoves = { up: up.slice(0, 10), down: down.slice(0, 5), nUp: up.length, nDown: down.length };
+  return V.priceMoves;
+}
+function priceWatchHtml() {
+  const d = priceMoves();
+  const row = (r) => { const idx = mfIdxOf(r[0]); return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + esc(r[0]) + '</td><td>' + esc(mfDescOf(r[0])) + '</td><td>' + (r[1] > 0 ? '+' : '') + r[1].toFixed(0) + '%</td><td>$' + r[2].toFixed(2) + '/kg</td><td>$' + r[3].toFixed(2) + '/kg</td><td>' + esc(fmtUsd(r[4])) + '</td></tr>'; };
+  return '<div class="chip-sec tsum-panel"><h3>Price watch - India export unit values, 2024 &rarr; 2025</h3>' +
+    '<p>Biggest moves in the average USD-per-kg price of India\'s exports, from the baked Comtrade trend data (lines with at least $50M of 2025 exports and weight reported both years). ' + d.nUp + ' lines rose 30%+ and ' + d.nDown + ' fell 30%+. Unit values mix price and product-mix changes - treat as a signal to investigate, not a price quote.</p>' +
+    '<h4>Sharpest rises</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Change</th><th>2024</th><th>2025</th><th>Exports 2025</th></tr></thead><tbody>' + d.up.map(row).join('') + '</tbody></table></div>' +
+    '<h4>Sharpest falls</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Change</th><th>2024</th><th>2025</th><th>Exports 2025</th></tr></thead><tbody>' + d.down.map(row).join('') + '</tbody></table></div>' +
+    '<p class="muted">Source: UN Comtrade, India reporter, partner World, export values FOB and net weight, calendar 2024-2025. Tap a row for the full code detail.</p></div>';
+}
+
 // Tariff drop finder: FTA lines whose duty fell recently (official schedules), ranked by India's exports.
 function tdropRows() {
   if (V.tdropRows) return V.tdropRows;
@@ -3095,6 +3127,8 @@ function searchIdleHtml() {
     (V.sgap ? sgapHomeHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="tdrop-toggle">' + (V.tdrop ? 'Hide tariff drops' : 'Tariff drops - FTA duty cuts you can claim now') + '</button></p>' +
     (V.tdrop ? tdropHomeHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="pw-toggle">' + (V.pw ? 'Hide price watch' : 'Price watch - biggest India export unit-value moves 2024-2025') + '</button></p>' +
+    (V.pw ? priceWatchHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -3345,6 +3379,8 @@ function paintIdle() {
   if (sgt) sgt.addEventListener('click', () => { V.sgap = !V.sgap; paintIdle(); });
   const tdt = el('tdrop-toggle');
   if (tdt) tdt.addEventListener('click', () => { V.tdrop = !V.tdrop; paintIdle(); });
+  const pwt = el('pw-toggle');
+  if (pwt) pwt.addEventListener('click', () => { V.pw = !V.pw; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });
