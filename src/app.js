@@ -2965,9 +2965,14 @@ function detailHtml(idx) {
   s += sgapDetailHtml(e);
   s += geoImpactHtml(e);
   s += landedCostHtml(e);
-  s += currencySlotHtml(e[0]);
+  // Dedupe (user 25 Sep 2026: "currency trend two times - display only one"): the INR
+  // currency-impact card already carries the live rate + 30d/365d move; when it renders,
+  // skip the standalone currency-trend card. When it cannot (non-India system, no trade
+  // data, or the live fetch failed), the trend card shows instead.
+  const ccyImp = ccyImpactHtml(e[1].slice(0, 6));
+  s += (ccyImp ? '' : currencySlotHtml(e[0]));
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
-  s += ccyImpactHtml(e[1].slice(0, 6));
+  s += ccyImp;
   s += tradeCardHtml(e[4], e[1]);
   s += marketDataHtml(e);
   s += ftaHtml(e[1]);
@@ -2996,7 +3001,7 @@ function detailHtml(idx) {
   s += '<div class="detail-sec no-print ai-panel">' +
     '<div class="ai-panel-head"><div><h3>Full report</h3><p class="muted">One tap makes the branded 14-section PDF - exact official data with AI-written analysis inside. ' + (AI_PROXY_URL || builtinKeys('gemini').length || builtinKeys('groq').length ? 'AI is built in for everyone - no key needed.' : 'Needs a free AI key, set up once.') + '</p></div><span class="ai-status ' + (aiAvailable() ? 'ready' : 'offline') + '">' + (apiKey || AI_PROXY_URL ? 'Live ready' : aiAvailable() ? 'Shared AI - may hit daily limit' : 'Key needed') + '</span></div>' +
     '<div class="action-row">' +
-    '<button class="file-button is-compact" id="d-tpl"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Writing the report with AI...' : 'Full report') + '</button>' +
+    '<button class="file-button is-compact" id="d-tpl"' + (V.busy ? ' disabled' : '') + '>' + (V.busy ? 'Writing the report with AI...' : 'Make the PDF report') + '</button>' +
     '<button class="file-button is-compact" data-variant="secondary" id="ai-settings">' + (V.settingsOpen ? 'Hide AI settings' : apiKey ? 'Change API key' : 'Use your own key') + '</button>' +
     '</div>';
   if (V.needKey) s += '<p class="error-note">Add a free AI key first - the full report uses AI writing, so the key comes before the report. Paste it below and tap Save on this phone.</p>';
