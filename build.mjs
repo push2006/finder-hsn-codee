@@ -30,6 +30,9 @@ const tradepartners = plain('tradepartners.ts', 'TRADE_PARTNERS')
 const marketdata = plain('marketdata.ts', 'MARKET_IMPORTERS')
   .replace('export const MARKET_DATA_YEAR =', 'const MARKET_DATA_YEAR =')
   .replace(/export const MARKET_WORLD: Record<string, number> =/, 'const MARKET_WORLD =');
+const marketexp = plain('marketexp.ts', 'MARKET_EXPORTERS')
+  .replace('export const MARKET_EXP_YEAR =', 'const MARKET_EXP_YEAR =')
+  .replace(/export const MARKET_WORLD_X: Record<string, number> =/, 'const MARKET_WORLD_X =');
 const sancgap = plain('sancgap.ts', 'SANCGAP')
   .replace('export const SANCGAP_YEAR =', 'const SANCGAP_YEAR =');
 const tradetrend = plain('tradetrend.ts', 'TRADE_TREND')
@@ -92,6 +95,7 @@ ${gst}
 ${trade}
 ${trade6}
 ${tradepartners}
+${marketexp}
 ${marketdata}
 ${sancgap}
 ${tradetrend}

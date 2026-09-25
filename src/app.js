@@ -7,6 +7,7 @@ import { DATA_B64 } from './data';
 import { GST_MAP } from './gstmap';
 import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
+import { MARKET_EXPORTERS, MARKET_WORLD_X } from './marketexp';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { MARKET_IMPORTERS, MARKET_WORLD, MARKET_DATA_YEAR } from './marketdata';
 import { SANCGAP, SANCGAP_YEAR } from './sancgap';
@@ -2427,6 +2428,24 @@ function marketFinderHtml(e) {
 }
 
 
+function compShareHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const rows = MARKET_EXPORTERS[c6];
+  if (!rows || !rows.length) return '';
+  const world = MARKET_WORLD_X[c6] || 0;
+  const pct = (v) => world > 0 ? ((v / world) * 100).toFixed(1) + '% of world' : '';
+  const inTop = rows.some((r) => r[0] === 'India');
+  const body = rows.map((r, i) => '<tr' + (r[0] === 'India' ? ' class="mf-in"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(r[0]) + (r[0] === 'India' ? ' &#127470;&#127475;' : '') + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + esc(pct(r[1])) + '</td></tr>').join('');
+  const t = TRADE6[c6];
+  const inNote = !inTop && t && t[1] > 0
+    ? '<p>India exported <strong>' + esc(fmtUsd(t[1])) + '</strong> of this line in ' + TRADE_YEAR + ' - outside the world top 8 exporters.</p>'
+    : '';
+  return '<div class="detail-sec mf-panel"><h3>Competitor share - top exporting countries, ' + MARKET_DATA_YEAR + '</h3>' +
+    '<p>World exported <strong>' + esc(fmtUsd(world)) + '</strong> of <strong>' + esc(mfDescOf(c6)) + ' (HS ' + c6 + ')</strong> in ' + MARKET_DATA_YEAR + '. These countries are your competition when selling abroad:</p>' +
+    '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>#</th><th>Exporting country</th><th>Exports ' + MARKET_DATA_YEAR + '</th><th>Share</th></tr></thead><tbody>' + body + '</tbody></table></div>' + inNote +
+    '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026), exports FOB in USD. International 6-digit level - this national line rolls up to HS ' + c6 + '. Data only, no advice.</p></div>';
+}
+
 // Tariff drop finder: FTA lines whose duty fell recently (official schedules), ranked by India's exports.
 function tdropRows() {
   if (V.tdropRows) return V.tdropRows;
@@ -2539,6 +2558,7 @@ function detailHtml(idx) {
   s += dutyCompareHtml(e);
   s += countryCompareHtml(e);
   s += marketFinderHtml(e);
+  s += compShareHtml(e);
   s += sgapDetailHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
