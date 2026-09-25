@@ -2429,6 +2429,14 @@ function marketFinderHtml(e) {
 }
 
 
+// Company lookup: outbound link to ImportYeti's public bills-of-lading search for this HS code (no data baked, link only).
+function companyLookupHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  if (!/^\d{6}$/.test(c6)) return '';
+  return '<div class="detail-sec mf-panel"><h3>Company lookup - who ships this product (US bills of lading)</h3>' +
+    '<p><a href="https://www.importyeti.com/hs-codes/' + c6 + '" target="_blank" rel="noreferrer">See the US import companies and their overseas suppliers filing bills of lading under HS ' + c6 + ' on ImportYeti</a> - free public search, opens their site in a new tab. Their data covers US sea shipments only.</p></div>';
+}
+
 function compShareHtml(e) {
   const c6 = e[1].slice(0, 6);
   const rows = MARKET_EXPORTERS[c6];
@@ -2626,6 +2634,7 @@ function detailHtml(idx) {
   s += countryCompareHtml(e);
   s += marketFinderHtml(e);
   s += compShareHtml(e);
+  s += companyLookupHtml(e);
   s += sgapDetailHtml(e);
   s += geoImpactHtml(e);
   s += landedCostHtml(e);
