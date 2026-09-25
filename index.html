@@ -64425,7 +64425,7 @@ function paintDetail() {
       V.apiKey = ''; V.needKey = false; paintDetail();
     });
   }
-  el('d-compare').addEventListener('click', () => { S.cmpA = idx; S.cmpB = null; V.cmpQ = ''; render(); });
+  el('d-compare').addEventListener('click', () => { S.cmpA = idx; S.cmpB = null; V.cmpQ = ''; V.cmpVerdict = null; V.cmpErr = null; V.cmpBusy = false; render(); });
   el('d-tpl').addEventListener('click', () => {
     if (!aiAvailable()) {
       V.needKey = true; V.settingsOpen = true; V.briefError = null; paintDetail();
@@ -64489,6 +64489,58 @@ function cmpColHtml(i) {
     '<div><dt>Worldwide</dt><dd>' + groups.filter((g) => g.selfExists).length + ' of ' + SYS.length + ' systems have this line</dd></div>' +
     '</dl></div>';
 }
+function cmpVerdictHtml(a, b) {
+  const eA = S.db.entries[a], eB = S.db.entries[b];
+  const ck = 'hsn-cmp-' + eA[0] + ':' + eA[1] + '-vs-' + eB[0] + ':' + eB[1];
+  let cached = '';
+  try { cached = localStorage.getItem(ck) || ''; } catch { /* ignore */ }
+  const body = V.cmpVerdict || cached;
+  let inner;
+  if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI reading of the two official wordings and figures on this page - the wordings and the datasets are the record, this summary is not.</p>';
+  else if (V.cmpErr) inner = '<p class="muted">' + esc(V.cmpErr) + '</p>';
+  else inner = '<p class="muted">One tap: AI reads both codes - wording, duty, scope - and says in plain words what goes under which, the cost difference, and what to double-check. Only the official data on this page is used.</p>';
+  return '<div class="detail-sec no-print" id="cmpv-card" style="margin-top:14px"><h3>Compare verdict - which code for what</h3><div id="cmpv-slot">' + inner + '</div>' +
+    '<p><button class="file-button is-compact" id="cmpv-go"' + (V.cmpBusy ? ' disabled' : '') + '>' + (V.cmpBusy ? 'Writing...' : (body ? 'Rewrite verdict' : 'Get verdict')) + '</button></p></div>';
+}
+async function cmpVerdictRun(a, b) {
+  if (V.cmpBusy) return;
+  V.cmpBusy = true; V.cmpErr = null;
+  const slot0 = el('cmpv-slot');
+  if (slot0) slot0.innerHTML = '<p class="muted">Writing verdict...</p>';
+  const b0 = el('cmpv-go'); if (b0) { b0.disabled = true; b0.textContent = 'Writing...'; }
+  const db = S.db;
+  const fact = (i) => {
+    const e = db.entries[i];
+    const f = ['System: ' + SYS[e[0]].name, 'Code: ' + e[1], 'Official wording: ' + pretty(e[2]),
+      'Chapter: ' + e[4] + (db.chapterTitle.get(e[4]) ? ' - ' + db.chapterTitle.get(e[4]) : ''),
+      'Level: ' + levelName(e[1])];
+    if (e[5]) f.push('Listed duty/rate: ' + e[5]);
+    if (e[0] === 1) {
+      const g = gstFor(e[1]);
+      if (g) f.push('India IGST: ' + g[0]);
+      const d = RODTEP_DTA[e[1]];
+      if (d) f.push('India export incentive: RoDTEP ' + d[0] + ' of FOB');
+    }
+    return f.join('\n');
+  };
+  try {
+    const t = await aiPickText('Compare these two customs codes for a small trader.\nCODE A\n' + fact(a) + '\nCODE B\n' + fact(b) + '\nRules: use ONLY the facts above - never invent products, countries, numbers, rates or rules; keep each number with the exact code and fact it came from; 4 to 6 short sentences: what goods fall under A, what under B from the wording, the duty difference if both list one, and when a trader should pick one over the other; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; end with exactly: Verify both wordings with customs before you file.', { temperature: 0.3, maxTokens: 700 });
+    V.cmpVerdict = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
+    const eA = db.entries[a], eB = db.entries[b];
+    try { localStorage.setItem('hsn-cmp-' + eA[0] + ':' + eA[1] + '-vs-' + eB[0] + ':' + eB[1], V.cmpVerdict); } catch { /* ignore */ }
+  } catch (err) {
+    V.cmpErr = err.message || 'AI failed - try again.';
+  }
+  V.cmpBusy = false;
+  const old = el('cmpv-card');
+  if (old && S.cmpA !== null && S.cmpB !== null) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = cmpVerdictHtml(S.cmpA, S.cmpB);
+    old.replaceWith(wrap.firstChild);
+    const bb = el('cmpv-go');
+    if (bb) bb.addEventListener('click', () => cmpVerdictRun(S.cmpA, S.cmpB));
+  }
+}
 function paintCompare() {
   let right;
   if (S.cmpB !== null) right = cmpColHtml(S.cmpB);
@@ -64496,9 +64548,11 @@ function paintCompare() {
     '<input class="cmp-input" id="cmp-q" value="' + esc(V.cmpQ) + '" placeholder="Search any product or code" autocomplete="off">' +
     '<div id="cmp-res"></div></div>';
   el('view').innerHTML = '<div class="page-pad"><div class="no-print back-row"><button class="file-button is-compact" data-variant="secondary" id="cmp-close">Close compare</button></div>' +
-    '<h2 class="cmp-title">Compare codes</h2><div class="cmp-grid">' + cmpColHtml(S.cmpA) + right + '</div></div>';
+    '<h2 class="cmp-title">Compare codes</h2><div class="cmp-grid">' + cmpColHtml(S.cmpA) + right + '</div>' + (S.cmpB !== null ? cmpVerdictHtml(S.cmpA, S.cmpB) : '') + '</div>';
   bindOpens(el('view'));
   el('cmp-close').addEventListener('click', back);
+  const cvB = el('cmpv-go');
+  if (cvB) cvB.addEventListener('click', () => cmpVerdictRun(S.cmpA, S.cmpB));
   const qi = el('cmp-q');
   if (qi) {
     const paintRes = () => {
@@ -64508,7 +64562,7 @@ function paintCompare() {
         return '<li><button class="result-link linkbtn-block" data-pick="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + ' <span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span> <span class="rdesc">' + esc(pretty(e[2])) + '</span></button></li>';
       }).join('') + '</ul>';
       Array.prototype.forEach.call(el('cmp-res').querySelectorAll('[data-pick]'), (b) => {
-        b.addEventListener('click', () => { S.cmpB = parseInt(b.getAttribute('data-pick'), 10); V.cmpQ = ''; paintCompare(); });
+        b.addEventListener('click', () => { S.cmpB = parseInt(b.getAttribute('data-pick'), 10); V.cmpQ = ''; V.cmpVerdict = null; V.cmpErr = null; V.cmpBusy = false; paintCompare(); });
       });
     };
     qi.addEventListener('input', () => { V.cmpQ = qi.value; paintRes(); });
