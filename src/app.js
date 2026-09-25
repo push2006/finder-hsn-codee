@@ -13,6 +13,7 @@ import { MARKET_IMPORTERS, MARKET_WORLD, MARKET_DATA_YEAR } from './marketdata';
 import { SANCGAP, SANCGAP_YEAR } from './sancgap';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
+import { HS22_FWD, HS22_REV } from './hscorr';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
 import { CERT_RULES, CERT_SRC } from './certs';
 import { ADD_MEASURES, ADD_ONGOING, ADD_SRC } from './add';
@@ -2894,6 +2895,27 @@ function marketDataHtml(e) {
     '<p class="muted">UN Comtrade ' + TRADE_YEAR + ' partner data and world top-buyer ranking, baked. Certificates and document needs per market: see the export checklist section. Export incentive for this line (RoDTEP): see the product intel card above.</p></div>';
 }
 
+function hs22Html(e) {
+  const c6 = e[1].slice(0, 6);
+  const rev = HS22_REV[c6], fwd = HS22_FWD[c6];
+  if (!rev && !fwd) return '';
+  const lk = (c) => '<button class="linkbtn" data-hs22="' + c + '">' + c + '</button>';
+  let rows = '';
+  if (rev) rows += '<p>New or restructured in HS 2022 - in pre-2022 schedules these goods sat under: ' + rev.map(lk).join(', ') + '.</p>';
+  if (fwd) rows += '<p>Scope changed in HS 2022 - some goods in this line moved to: ' + fwd.map(lk).join(', ') + '.</p>';
+  return '<div class="detail-sec"><h3>HS 2022 code change</h3>' + rows +
+    '<p class="muted">Official WCO HS 2017-2022 correlation (6-digit projection), via the Canada Border Services Agency Customs Tariff 2022 Concordance. A correlation says where the goods may classify now - read the current wording before deciding.</p></div>';
+}
+function bindHs22(root) {
+  Array.prototype.forEach.call(root.querySelectorAll('[data-hs22]'), (b) => {
+    b.addEventListener('click', () => {
+      V.q = b.getAttribute('data-hs22'); V.sysFilter = -1; V.clsHits = null; V.clsOffline = null; V.clsErr = null;
+      S.sel = null; S.cmpA = null; S.cmpB = null; S.showList = false;
+      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
+      render();
+    });
+  });
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2922,6 +2944,7 @@ function detailHtml(idx) {
     '</dl>' +
     scometFlagHtml(e);
   s += hsnVsHsHtml(db, e);
+  s += hs22Html(e);
   s += intelHtml(e);
   if (!S.clientMode) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
@@ -3000,6 +3023,7 @@ function paintDetail() {
   const e = db.entries[idx];
   const key = e[0] + ':' + e[1];
   bindOpens(el('view'));
+  bindHs22(el('view'));
   el('d-back').addEventListener('click', back);
   const favB = el('d-fav');
   if (favB) favB.addEventListener('click', () => { toggleFav(key); paintDetail(); paintNav(); });
@@ -3785,6 +3809,16 @@ function paintResults() {
   const shown = fam.slice(0, 60);
   let s = '';
   if (r.note) s += '<p class="alert-banner no-print">' + esc(r.note) + '</p>';
+  const dq = V.q.replace(/\D/g, '');
+  if (dq.length >= 6 && !exact.length) {
+    const c6 = dq.slice(0, 6);
+    const stillLive = r.out.some((i) => S.db.entries[i][1].indexOf(c6) === 0);
+    const fwd = HS22_FWD[c6];
+    if (fwd && !stillLive) {
+      const lk = (c) => '<button class="linkbtn" data-hs22="' + c + '">' + c + '</button>';
+      s += '<div class="alert-banner no-print"><strong>' + esc(c6) + '</strong> was a valid HS code until 2021. HS 2022 (in force worldwide since 1 Jan 2022) replaced it - these goods now correlate to: ' + fwd.map(lk).join(', ') + '. Official WCO correlation, via the Canada Border Services Agency 2022 Concordance.</div>';
+    }
+  }
   if (exact.length || fam.length) {
     s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length + exact.length) + ' ' + (fam.length + exact.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
     const row = (i, direct) => {
@@ -3797,6 +3831,7 @@ function paintResults() {
   }
   slot.innerHTML = s;
   bindOpens(slot);
+  bindHs22(slot);
 }
 
 /* ---------- controller ---------- */
