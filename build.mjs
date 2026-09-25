@@ -86,6 +86,11 @@ const doc = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Worldwide HSN Code Finder</title>
+<meta name="description" content="Search 340,000+ official customs tariff codes across 22 national systems - India HSN, US HTS, EU CN, UK, Korea, Canada, Japan, Australia, Brazil and more. Duty rates, export incentives, trade data, documents and AI reports in one free file.">
+<meta property="og:title" content="Worldwide HSN Code Finder">
+<meta property="og:description" content="Find the right customs code for any product across 22 official tariff systems, with duty rates, trade data and export documents.">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://finder-hsn-codee.onrender.com/">
 <style>
 ${css}
 </style>
