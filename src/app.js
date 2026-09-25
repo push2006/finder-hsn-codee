@@ -2796,6 +2796,42 @@ function sgapDetailHtml(e) {
   return out;
 }
 
+
+// ---- Product intel: this code in one view, auto-gathered from the baked official datasets ----
+function intelHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const rows = [];
+  if (e[0] === 1) {
+    const g = gstFor(e[1]);
+    const bcd = e[5] && e[5].indexOf('BCD ') === 0 ? e[5].slice(4).trim() : null;
+    if (g || bcd) rows.push(['India duty', (bcd ? 'BCD ' + esc(bcd) + ' (statutory)' + (g ? ' + ' : '') : '') + (g ? 'IGST ' + esc(g[0]) : '')]);
+  } else if (e[5]) {
+    rows.push(['Duty', esc(e[5])]);
+  }
+  const tp = TRADE_PARTNERS[c6];
+  if (tp && tp.x.length) rows.push(['Top market for Indian supply', esc(tp.x[0][0]) + ' (' + fmtUsd(tp.x[0][1]) + ', ' + TRADE_YEAR + ')']);
+  if (tp && tp.m.length) rows.push(['Top import origin into India', esc(tp.m[0][0]) + ' (' + fmtUsd(tp.m[0][1]) + ', ' + TRADE_YEAR + ')']);
+  const ss = TRADE_SEASON[c6];
+  if (ss) {
+    const tot = ss[0].map((v, i) => (v || 0) + (ss[1][i] || 0));
+    const sumAll = tot.reduce((a, b) => a + b, 0);
+    if (sumAll) {
+      let pk = 0, tr = 0;
+      for (let i = 1; i < 12; i++) { if (tot[i] > tot[pk]) pk = i; if (tot[i] < tot[tr]) tr = i; }
+      const swing = Math.round((tot[pk] - tot[tr]) / (sumAll / 12) * 100);
+      rows.push(['Seasonality', 'peaks <strong>' + esc(MONTH_NAMES[pk]) + '</strong>, dips ' + esc(MONTH_NAMES[tr]) + (swing > 25 ? ' (' + swing + '% swing)' : ' (fairly even)')]);
+    }
+  }
+  if (e[0] === 1) {
+    const d = RODTEP_DTA[e[1]];
+    if (d) rows.push(['Export incentive', 'RoDTEP <strong>' + esc(d[0]) + (d[0].indexOf('%') >= 0 ? ' of FOB' : '') + '</strong>' + (d[1] ? ', cap Rs ' + esc(d[1]) + ' per ' + esc(d[2] || 'unit') : '')]);
+  }
+  if (rows.length < 2) return '';
+  return '<div class="detail-sec intel-panel"><h3>Product intel - this code in one view</h3>' +
+    '<dl class="detail-facts intel-list">' + rows.map((r) => '<div><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>').join('') + '</dl>' +
+    '<p class="muted">Auto-gathered from the official datasets baked into this file - each row expands in a section below. Port-level detail for this code is not baked yet.</p></div>';
+}
+
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2824,6 +2860,7 @@ function detailHtml(idx) {
     '</dl>' +
     scometFlagHtml(e);
   s += hsnVsHsHtml(db, e);
+  s += intelHtml(e);
   if (!S.clientMode) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
       '<textarea class="note-box" id="d-note" rows="3" placeholder="Your private note for this code - client name, shipment, price, anything. Saved on this device only.">' + esc(note) + '</textarea></div>';
