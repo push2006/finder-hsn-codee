@@ -2921,6 +2921,50 @@ function bindHs22(root) {
     });
   });
 }
+function plainWordsHtml(e) {
+  let cached = '';
+  try { cached = localStorage.getItem('hsn-plain-' + e[0] + ':' + e[1]) || ''; } catch { /* ignore */ }
+  const body = V.plain || cached;
+  let inner;
+  if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI plain-words reading of the official wording on this page - the wording itself, not this summary, is what customs applies.</p>';
+  else if (V.plainErr) inner = '<p class="muted">' + esc(V.plainErr) + '</p>';
+  else inner = '<p class="muted">The legal wording above in one simple read: what this code covers, everyday examples, what sits outside it. One tap, AI-written, free.</p>';
+  return '<div class="detail-sec no-print" id="plain-card"><h3>Plain words - what this code covers</h3><div id="plain-slot">' + inner + '</div>' +
+    '<p><button class="file-button is-compact" id="plain-go"' + (V.plainBusy ? ' disabled' : '') + '>' + (V.plainBusy ? 'Writing...' : (body ? 'Rewrite plain words' : 'Plain words')) + '</button></p></div>';
+}
+async function plainWordsRun(e) {
+  if (V.plainBusy) return;
+  V.plainBusy = true; V.plainErr = null;
+  const slot0 = el('plain-slot');
+  if (slot0) slot0.innerHTML = '<p class="muted">Writing plain words...</p>';
+  const b0 = el('plain-go'); if (b0) { b0.disabled = true; b0.textContent = 'Writing...'; }
+  const db = S.db;
+  const pathDescs = chain(db, S.sel).map((i) => pretty(db.entries[i][2])).filter(Boolean);
+  const facts = [
+    'System: ' + SYS[e[0]].name,
+    'Code: ' + e[1],
+    'Official wording: ' + pretty(e[2]),
+    e[4] ? 'Chapter: ' + e[4] + (db.chapterTitle.get(e[4]) ? ' - ' + db.chapterTitle.get(e[4]) : '') : '',
+    pathDescs.length > 1 ? 'Classification path: ' + pathDescs.join(' > ') : '',
+    e[5] ? 'Duty/rate line as listed: ' + e[5] : '',
+  ].filter(Boolean).join('\n');
+  try {
+    const t = await aiPickText('Explain this customs tariff line in plain words for a small trader who has never read a tariff schedule.\n' + facts + '\nRules: use only the information above; never invent products, numbers, rates or rules; 3 to 5 short sentences: what products this covers, two or three everyday examples consistent with the wording, and one example of what sits outside it if the wording makes that clear; simple words, no legal phrasing; do not restate the code number; end with exactly: Verify the exact wording with customs before shipping.', { temperature: 0.3, maxTokens: 500 });
+    V.plain = String(t || '').trim();
+    try { localStorage.setItem('hsn-plain-' + e[0] + ':' + e[1], V.plain); } catch { /* ignore */ }
+  } catch (err) {
+    V.plainErr = err.message || 'AI failed - try again.';
+  }
+  V.plainBusy = false;
+  const old = el('plain-card');
+  if (old && S.sel !== null) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = plainWordsHtml(e);
+    old.replaceWith(wrap.firstChild);
+    const b = el('plain-go');
+    if (b) b.addEventListener('click', () => plainWordsRun(e));
+  }
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2950,6 +2994,7 @@ function detailHtml(idx) {
     scometFlagHtml(e);
   s += hsnVsHsHtml(db, e);
   s += hs22Html(e);
+  s += plainWordsHtml(e);
   s += intelHtml(e);
   if (!S.clientMode) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
@@ -3041,6 +3086,8 @@ function paintDetail() {
   if (slB) slB.addEventListener('click', () => { toggleShort(key); paintDetail(); paintNav(); });
   const noteT = el('d-note');
   if (noteT) noteT.addEventListener('input', () => { setNote(key, noteT.value); });
+  const plB = el('plain-go');
+  if (plB) plB.addEventListener('click', () => plainWordsRun(e));
   if (el('lc-goods')) {
     const lcUpd = () => paintLanded(e);
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
@@ -3859,7 +3906,7 @@ function setNote(k, v) {
 }
 function openEntry(i) {
   S.sel = i; S.cmpA = null; S.cmpB = null; S.showList = false;
-  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false;
+  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false; V.plain = null; V.plainBusy = false; V.plainErr = null;
   const e = S.db.entries[i];
   const k = e[0] + ':' + e[1];
   try { history.replaceState(null, '', '#code=' + k); } catch { /* ignore */ }
