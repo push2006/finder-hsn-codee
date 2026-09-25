@@ -50471,6 +50471,7 @@ const S = {
 const V = { // per-view ephemeral state
   mf: false, mfTop: null,
   sgap: false, sgapTop: null,
+  tdrop: false,
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
@@ -51230,7 +51231,10 @@ function ftaHtml(code) {
       const b = ftaPct(base), n = ftaPct(now);
       if (cat === 'E(0)') line = 'duty-free since 1 May 2022';
       else if (b !== null && n !== null && n < b) {
-        line = 'MFN ' + esc(base) + ' &rarr; <strong>' + esc(now) + ' now</strong>, ' + esc(v[11]) + ' from year 10';
+        {
+        const prev = ftaPct(v[1 + FTA_UAE_YEAR_NOW]);
+        line = 'MFN ' + esc(base) + ' &rarr; <strong>' + esc(now) + ' now</strong>' + (prev !== null && prev > n ? ' (cut this agreement year from ' + prev + '%)' : '') + ', ' + esc(v[11]) + ' from year 10';
+      }
         if (b - n > bestSave) { bestSave = b - n; bestWhere = 'UAE'; }
       } else line = 'MFN ' + esc(base) + ' &rarr; <strong>' + esc(now) + ' now</strong>';
     }
@@ -52210,6 +52214,35 @@ function marketFinderHtml(e) {
 }
 
 
+// Tariff drop finder: FTA lines whose duty fell recently (official schedules), ranked by India's exports.
+function tdropRows() {
+  if (V.tdropRows) return V.tdropRows;
+  const drops = [];
+  for (const k in FTA_UAE) {
+    const v = FTA_UAE[k];
+    if (v[1] === 'EX' || v[1] === 'PG' || v[1] === 'SG') continue;
+    const prev = ftaPct(v[1 + FTA_UAE_YEAR_NOW]), now = ftaPct(v[2 + FTA_UAE_YEAR_NOW]);
+    if (prev !== null && now !== null && now < prev) drops.push([k, v[1 + FTA_UAE_YEAR_NOW], v[2 + FTA_UAE_YEAR_NOW], 'UAE', 'May 2026']);
+  }
+  for (const k in FTA_AU) {
+    const v = FTA_AU[k];
+    if (v[1] === 'B5') drops.push([k, v[0], '0%', 'Australia', 'Jan 2026']);
+  }
+  drops.sort((a, b) => ((TRADE6[b[0].slice(0, 6)] || [0, 0])[1]) - ((TRADE6[a[0].slice(0, 6)] || [0, 0])[1]));
+  V.tdropRows = drops;
+  return drops;
+}
+function tdropHomeHtml() {
+  const drops = tdropRows();
+  const rows = drops.slice(0, 15).map((r) => {
+    const c6 = r[0].slice(0, 6), idx = mfIdxOf(c6), t = TRADE6[c6];
+    return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + esc(r[0]) + '</td><td>' + esc(mfDescOf(c6)) + '</td><td>' + esc(r[1]) + '</td><td><strong>' + esc(r[2]) + '</strong></td><td>' + esc(r[3]) + '</td><td>' + esc(r[4]) + '</td><td>' + esc(t && t[1] > 0 ? fmtUsd(t[1]) : 'nil') + '</td></tr>';
+  }).join('');
+  return '<div class="chip-sec tsum-panel"><h3>Tariff drops - FTA duty cuts you can claim now</h3>' +
+    '<p>Product lines whose duty under India\'s trade agreements fell recently: Australia-India ECTA lines finished their phase-down and went duty-free on 1 Jan 2026, and India-UAE CEPA lines stepped down again in May 2026 (agreement year 5). Ranked by India\'s exports. ' + drops.length + ' tariff lines carry a recent cut. A certificate of origin is needed to claim the lower rate.</p>' +
+    '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS line</th><th>Product</th><th>Was</th><th>Now</th><th>Market</th><th>Effective</th><th>India exports</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<p class="muted">Sources: Australia-India ECTA Annex 2A (Tariff Schedule of Australia, in force 29 Dec 2022) and India-UAE CEPA Appendix 2A-A (Tariff Schedule of UAE, in force 1 May 2022), baked from the official agreement schedules. Tap a row for the full code detail.</p></div>';
+}
 function sgapData() {
   if (V.sgapTop) return V.sgapTop;
   const opps = [], risks = [];
@@ -52827,6 +52860,8 @@ function searchIdleHtml() {
     (V.mf ? mfPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="sgap-toggle">' + (V.sgap ? 'Hide sanction gap finder' : 'Sanction gap finder - where sanctions reshape trade') + '</button></p>' +
     (V.sgap ? sgapHomeHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="tdrop-toggle">' + (V.tdrop ? 'Hide tariff drops' : 'Tariff drops - FTA duty cuts you can claim now') + '</button></p>' +
+    (V.tdrop ? tdropHomeHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -53075,6 +53110,8 @@ function paintIdle() {
   if (mft) mft.addEventListener('click', () => { V.mf = !V.mf; paintIdle(); });
   const sgt = el('sgap-toggle');
   if (sgt) sgt.addEventListener('click', () => { V.sgap = !V.sgap; paintIdle(); });
+  const tdt = el('tdrop-toggle');
+  if (tdt) tdt.addEventListener('click', () => { V.tdrop = !V.tdrop; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });
