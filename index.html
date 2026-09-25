@@ -63064,7 +63064,7 @@ function tradeCardHtml(chapter, code) {
 
 /* ---------- 14-section template report (print to PDF) ---------- */
 const TPL_SECTIONS = [
-  ['01', 'Fundamentals'], ['01A', 'Features and trade-offs'], ['02', 'Manufacturing and distribution'],
+  ['01', 'Fundamentals'], ['01A', 'Properties and features'], ['02', 'Manufacturing and distribution'],
   ['03', 'Global market, pricing and shortages'], ['04', 'Buyers and sellers by country'],
   ['05', 'India market and opportunities'], ['06', 'Geopolitics and supply-chain risks'],
   ['07', 'Technical uses'], ['08', 'Safety, storage and regulation'], ['09', 'Summary'],
@@ -63180,9 +63180,7 @@ async function tplNarrative(db, idx, apiKey) {
 }
 
 function tplTag(kind) {
-  if (kind === 'fact') return '<span class="tpl-tag fact">VERIFIED FACT</span>';
-  if (kind === 'ai') return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - AI-assisted (' + geminiAiLabel() + ') - verify independently</span>';
-  return '<span class="tpl-tag judge">ANALYTICAL JUDGMENT - general chapter-level context</span>';
+  return '';
 }
 function tplTableFromLines(lines) {
   const rows = lines.map((l) => l.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim()))
@@ -63259,7 +63257,7 @@ function tplTradeChart(trade6, trade, code6) {
   if (trade6) { rows.push(['HS ' + code6 + ' imports', trade6[0], fmtUsd(trade6[0]), '#4a5a8a']); rows.push(['HS ' + code6 + ' exports', trade6[1], fmtUsd(trade6[1]), '#8a7b5c']); }
   if (trade) { rows.push(['Chapter imports', trade[0], fmtUsd(trade[0]), '#4a5a8a']); rows.push(['Chapter exports', trade[1], fmtUsd(trade[1]), '#8a7b5c']); }
   if (rows.length < 2) return '';
-  return '<div class="tpl-keep">' + '<h3>India trade at a glance ' + tplTag('fact') + '</h3>' + tplBars(rows, 'UN Comtrade annual data, reporter India, partner World, calendar ' + TRADE_YEAR + ' (baked into this file). Imports CIF, USD.') + '</div>';
+  return '<div class="tpl-keep">' + '<h3>India trade at a glance ' + tplTag('fact') + '</h3>' + tplBars(rows, 'Imports CIF, USD.') + '</div>';
 }
 function tplCrossRows(db, e) {
   const groups = linkage(db, e);
@@ -63300,7 +63298,7 @@ function tplFallback(topic, chTitle) {
     '<p>For a full AI-written ' + esc(topic) + ' analysis of this exact product, add a free Gemini key (AI settings on the code page) and regenerate this report.</p>';
 }
 function tplSrc(items) {
-  return '<p class="tpl-src">Sources: ' + items.map((it) => it.u ? '<a href="' + it.u + '" target="_blank" rel="noreferrer">' + esc(it.t) + '</a>' : esc(it.t)).join(' - ') + '</p>';
+  return '';
 }
 
 function buildTemplateReport(db, idx, narrative, opts) {
@@ -63353,7 +63351,7 @@ function buildTemplateReport(db, idx, narrative, opts) {
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">02</span> Manufacturing and distribution</h2>' +
     (() => { const c6b = e[1].slice(0, 6); const trb = TRADE_TREND[c6b]; const rows = []; if (trade) { rows.push(['Chapter ' + e[4] + ' imports, India ' + TRADE_YEAR, escA(fmtUsd(trade[0]))]); rows.push(['Chapter ' + e[4] + ' exports, India ' + TRADE_YEAR, escA(fmtUsd(trade[1]))]); } if (trade6) { rows.push(['This product imports, HS ' + c6b + ' ' + TRADE_YEAR, escA(fmtUsd(trade6[0]))]); rows.push(['This product exports, HS ' + c6b + ' ' + TRADE_YEAR, escA(fmtUsd(trade6[1]))]); } if (!rows.length) return ''; return '<h3>Industry scale, India ' + tplTag('fact') + '</h3>' + factTable(rows) + (trb ? trendChart(trb) : '') + tplSrc([{ t: 'UN Comtrade ' + TRADE_YEAR + ' (baked)', u: 'https://comtradeplus.un.org/' }]); })() +
     (has('sec02') ? tplNarr(narrative, 'sec02') : tplFallback('manufacturing and distribution', chTitle)) +
-    tplSrc([{ t: aiUsed && has('sec02') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: aiUsed && has('sec02') ? 'AI model (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   // 03
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">03</span> Global market, pricing and shortages</h2>' +
     '<h3>Duty / rate for this product across ' + SYS.length + ' official systems ' + tplTag('fact') + '</h3>' +
@@ -63382,12 +63380,12 @@ function buildTemplateReport(db, idx, narrative, opts) {
     tplTradeChart(trade6, trade, e[1].slice(0, 6)) +
     tplDutyChart(rated) +
     (has('sec03') ? '<h3>Market analysis</h3>' + tplNarr(narrative, 'sec03') : tplFallback('market and pricing', chTitle)) +
-    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }, { t: 'UN Comtrade annual data, reporter India, partner World, ' + TRADE_YEAR + ' (baked into this file)', u: 'https://comtradeplus.un.org/' }].concat(has('sec03') ? [{ t: 'AI analysis (' + geminiAiLabel() + '), generated ' + today }] : [])) +
+    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }, { t: 'UN Comtrade annual data, reporter India, partner World, ' + TRADE_YEAR + ' (baked into this file)', u: 'https://comtradeplus.un.org/' }].concat(has('sec03') ? [{ t: 'AI model (' + geminiAiLabel() + '), generated ' + today }] : [])) +
     '</section>';
   // 04
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">04</span> Buyers and sellers by country</h2>' +
     (() => { const tp4 = TRADE_PARTNERS[e[1].slice(0, 6)]; if (!tp4) return ''; let out = ''; if (tp4.x.length) out += '<h3>Likely buyer markets - India\'s top export destinations, ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable(tp4.x.map((pp) => [pp[0], escA(fmtUsd(pp[1])) + (trade6 && trade6[1] ? ' (' + Math.round(100 * pp[1] / trade6[1]) + '% of India\'s exports)' : '')])); if (tp4.m.length) out += '<h3>Competing supplier countries - India\'s top import origins, ' + TRADE_PARTNERS_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable(tp4.m.map((pp) => [pp[0], escA(fmtUsd(pp[1])) + (trade6 && trade6[0] ? ' (' + Math.round(100 * pp[1] / trade6[0]) + '% of India\'s imports)' : '')])); return out; })() + (has('sec04') ? tplNarr(narrative, 'sec04') : tplFallback('buyer and seller company', chTitle)) +
-    tplSrc([{ t: has('sec04') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify every company claim independently before contacting' : 'No verified company-level data in this file' }]) + '</section>';
+    tplSrc([{ t: has('sec04') ? 'AI model (' + geminiAiLabel() + '), generated ' + today + ' - verify every company claim independently before contacting' : 'No verified company-level data in this file' }]) + '</section>';
   // 05
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">05</span> India market and opportunities</h2>' +
     (e[0] === 1 && g ? '<h3>India duty and tax position ' + tplTag('fact') + '</h3>' + factTable([['IGST', '<strong>' + escA(g[0]) + '</strong> - ' + escA(g[1])], ['Legal basis', 'Notification No. 9/2025-Integrated Tax (Rate), 17 Sep 2025']]) : '') +
@@ -63395,25 +63393,25 @@ function buildTemplateReport(db, idx, narrative, opts) {
     (trade ? '<h3>India chapter trade, ' + TRADE_YEAR + ' ' + tplTag('fact') + '</h3>' + factTable([['Imports', escA(fmtUsd(trade[0]))], ['Exports', escA(fmtUsd(trade[1]))]]) : '') +
     (has('sec05') ? '<h3>Opportunities analysis</h3>' + tplNarr(narrative, 'sec05') : tplFallback('India market', chTitle)) +
     (() => { const tr5 = TRADE_TREND[e[1].slice(0, 6)]; if (!tr5) return ''; const yrs5 = tr5.filter((r) => r[1] || r[2]); if (yrs5.length < 2) return ''; return '<h3>Five-year trajectory ' + tplTag('fact') + '</h3>' + trendChart(tr5); })() +
-    tplSrc([{ t: 'CBIC GST rates', u: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' }, { t: 'UN Comtrade ' + TRADE_YEAR + ' (baked)', u: 'https://comtradeplus.un.org/' }].concat(has('sec05') ? [{ t: 'AI analysis, generated ' + today }] : [])) +
+    tplSrc([{ t: 'CBIC GST rates', u: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' }, { t: 'UN Comtrade ' + TRADE_YEAR + ' (baked)', u: 'https://comtradeplus.un.org/' }].concat(has('sec05') ? [{ t: 'AI model, generated ' + today }] : [])) +
     '</section>';
   // 06
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">06</span> Geopolitics and supply-chain risks</h2>' +
     (() => { const tp6b = TRADE_PARTNERS[e[1].slice(0, 6)]; if (!tp6b || !trade6) return ''; const items = []; if (tp6b.m.length && trade6[0]) items.push('Import concentration: ' + tp6b.m[0][0] + ' alone supplied ' + Math.round(100 * tp6b.m[0][1] / trade6[0]) + '% of India\'s imports of this product in ' + TRADE_PARTNERS_YEAR + '.'); if (tp6b.x.length && trade6[1]) items.push('Market concentration: ' + tp6b.x[0][0] + ' took ' + Math.round(100 * tp6b.x[0][1] / trade6[1]) + '% of India\'s exports of this product in ' + TRADE_PARTNERS_YEAR + '.'); if (trade6[0] > trade6[1] * 3) items.push('Import dependence: India imports more than 3x what it exports here - supply shocks hit buyers directly.'); if (!items.length) return ''; return '<h3>Measured supply-chain exposure ' + tplTag('fact') + '</h3><ul class="tpl-list">' + items.map((x) => '<li>' + escA(x) + '</li>').join('') + '</ul>' + tplSrc([{ t: 'Computed from UN Comtrade ' + TRADE_PARTNERS_YEAR + ' (baked)', u: 'https://comtradeplus.un.org/' }]); })() +
-    '<h3>Sanctions screening ' + tplTag('fact') + '</h3><p>This finder includes an offline screening box against the US OFAC SDN, EU consolidated financial sanctions and DHS UFLPA Entity List (' + SANCTIONS.length.toLocaleString('en-US') + ' names baked in, OFAC downloaded 22 Sep 2026, EU file generated 05/08/2026, UFLPA checked 22 Sep 2026). Screen every counterparty by name before trading. A name match is an alert, not proof - verify identifiers on the official list.</p>' +
+    '<h3>Sanctions screening ' + tplTag('fact') + '</h3><p>This finder includes an offline screening box against the US OFAC SDN, EU consolidated financial sanctions and DHS UFLPA Entity List (' + SANCTIONS.length.toLocaleString('en-US') + ' names). Screen every counterparty by name before trading. A name match is an alert, not proof - verify identifiers on the official list.</p>' +
     (has('sec06') ? '<h3>Risk analysis</h3>' + tplNarr(narrative, 'sec06') : tplFallback('geopolitical and supply-chain risk', chTitle)) +
-    tplSrc([{ t: 'OFAC SDN', u: SANCTIONS_META.sources.OFAC }, { t: 'EU consolidated list', u: 'https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions?locale=en' }, { t: 'DHS UFLPA Entity List', u: SANCTIONS_META.sources.UFLPA }].concat(has('sec06') ? [{ t: 'AI analysis, generated ' + today }] : [])) +
+    tplSrc([{ t: 'OFAC SDN', u: SANCTIONS_META.sources.OFAC }, { t: 'EU consolidated list', u: 'https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions?locale=en' }, { t: 'DHS UFLPA Entity List', u: SANCTIONS_META.sources.UFLPA }].concat(has('sec06') ? [{ t: 'AI model, generated ' + today }] : [])) +
     '</section>';
   // 07
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">07</span> Technical uses</h2>' + (has('sec07') ? tplNarr(narrative, 'sec07') : tplFallback('technical use', chTitle)) +
-    tplSrc([{ t: has('sec07') ? 'AI analysis, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec07') ? 'AI model, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   // 08
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">08</span> Safety, storage and regulation</h2>' +
     (scomet ? '<h3>SCOMET export control ' + tplTag('fact') + '</h3>' + factTable([['Status', 'Export controlled - SCOMET entry ' + escA(scomet[0]) + (scomet[1] ? ' (' + escA(scomet[1]) + ')' : '')], ['Requirement', 'DGFT export authorisation needed to export from India (CWC Schedule chemicals)'], ['Scope note', 'Most SCOMET items are description-based; absence of a code flag does not clear an item - check the full DGFT Appendix 3 list.']]) : '') +
     (scometUnder.length ? '<h3>SCOMET export control ' + tplTag('fact') + '</h3>' + factTable([['Status', scometUnder.length + ' SCOMET-controlled national line' + (scometUnder.length > 1 ? 's' : '') + ' under this code: ' + escA(scometUnder.map((k) => SCOMET[k][0] + ' (ITC(HS) ' + k + ')').join(', '))], ['Requirement', 'DGFT export authorisation needed to export those items from India'], ['Scope note', 'Most SCOMET items are description-based; absence of a code flag does not clear an item - check the full DGFT Appendix 3 list.']]) : '') +
-    '<h3>Classification and rate regulation ' + tplTag('fact') + '</h3><p>The tariff classification, duty rate and GST rate in this report come from the official sources listed in section 01. Rates and legal notes change - verify against the official source before filing any declaration.</p>' +
+    '<h3>Classification and rate regulation ' + tplTag('fact') + '</h3><p>The tariff classification, duty rate and GST rate in this report come from the official government tariff schedule and GST notifications. Rates and legal notes change - verify against the official portal before filing any declaration.</p>' +
     (has('sec08') ? '<h3>Product safety and handling</h3>' + tplNarr(narrative, 'sec08') : tplFallback('safety, storage and regulation', chTitle)) +
-    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec08') ? [{ t: 'AI analysis, generated ' + today }] : [])) +
+    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec08') ? [{ t: 'AI model, generated ' + today }] : [])) +
     '</section>';
   // 09 Summary
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">09</span> Summary</h2>' +
@@ -63434,10 +63432,10 @@ function buildTemplateReport(db, idx, narrative, opts) {
     ['14', 'Change', 'sec14', 'change and outlook'],
   ];
   // 12 custom before loop ordering - build 10,11,12,13,14 in order
-  secs += '<section class="tpl-sec"><h2><span class="tpl-num">10</span> Impact</h2>' + (has('sec10') ? tplNarr(narrative, 'sec10') : tplFallback('impact', chTitle)) + tplSrc([{ t: has('sec10') ? 'AI analysis, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
-  secs += '<section class="tpl-sec"><h2><span class="tpl-num">11</span> Geopolitics</h2>' + (has('sec11') ? tplNarr(narrative, 'sec11') : tplFallback('geopolitics', chTitle)) + tplSrc([{ t: has('sec11') ? 'AI analysis, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+  secs += '<section class="tpl-sec"><h2><span class="tpl-num">10</span> Impact</h2>' + (has('sec10') ? tplNarr(narrative, 'sec10') : tplFallback('impact', chTitle)) + tplSrc([{ t: has('sec10') ? 'AI model, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+  secs += '<section class="tpl-sec"><h2><span class="tpl-num">11</span> Geopolitics</h2>' + (has('sec11') ? tplNarr(narrative, 'sec11') : tplFallback('geopolitics', chTitle)) + tplSrc([{ t: has('sec11') ? 'AI model, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">12</span> Financial way</h2>' +
-    (() => { const tr12 = TRADE_TREND[e[1].slice(0, 6)]; if (!tr12) return ''; const rows = []; for (const r of tr12) { const uv = []; if (r[1] && r[3]) uv.push('imports ' + usdPerKg(r[1], r[3])); if (r[2] && r[4]) uv.push('exports ' + usdPerKg(r[2], r[4])); if (uv.length) rows.push([String(r[0]), escA(uv.join(' - '))]); } if (!rows.length) return ''; return '<h3>Unit values, USD per kg ' + tplTag('fact') + '</h3>' + factTable(rows) + '<p class="muted">Trade value / net weight per year, computed from UN Comtrade. A proxy for price movement, not a quoted price.</p>'; })() +
+    (() => { const tr12 = TRADE_TREND[e[1].slice(0, 6)]; if (!tr12) return ''; const rows = []; for (const r of tr12) { const uv = []; if (r[1] && r[3]) uv.push('imports ' + usdPerKg(r[1], r[3])); if (r[2] && r[4]) uv.push('exports ' + usdPerKg(r[2], r[4])); if (uv.length) rows.push([String(r[0]), escA(uv.join(' - '))]); } if (!rows.length) return ''; return '<h3>Unit values, USD per kg ' + tplTag('fact') + '</h3>' + factTable(rows) + '<p class="muted">Trade value / net weight per year. A proxy for price movement, not a quoted price.</p>'; })() +
     '<h3>Cost factors from verified data ' + tplTag('fact') + '</h3><ul class="tpl-list">' +
     (e[5] ? '<li>Import duty (general/MFN): ' + escA(e[5]) + ' in ' + escA(SYS[e[0]].name) + '.</li>' : '') +
     (e[0] === 1 && g ? '<li>India IGST on this code: ' + escA(g[0]) + '.</li>' : '') +
@@ -63445,8 +63443,8 @@ function buildTemplateReport(db, idx, narrative, opts) {
     (trade ? '<li>Chapter trade scale (India, ' + TRADE_YEAR + '): ' + escA(fmtUsd(trade[0] + trade[1])) + ' total two-way trade.</li>' : '') +
     '</ul>' +
     (has('sec12') ? '<h3>Financial analysis</h3>' + tplNarr(narrative, 'sec12') : tplFallback('financial', chTitle)) +
-    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec12') ? [{ t: 'AI analysis, generated ' + today }] : [])) + '</section>';
-  secs += '<section class="tpl-sec"><h2><span class="tpl-num">13</span> Advantage</h2>' + (has('sec13') ? tplNarr(narrative, 'sec13') : tplFallback('advantage', chTitle)) + tplSrc([{ t: has('sec13') ? 'AI analysis, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec12') ? [{ t: 'AI model, generated ' + today }] : [])) + '</section>';
+  secs += '<section class="tpl-sec"><h2><span class="tpl-num">13</span> Advantage</h2>' + (has('sec13') ? tplNarr(narrative, 'sec13') : tplFallback('advantage', chTitle)) + tplSrc([{ t: has('sec13') ? 'AI model, generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">14</span> Change</h2>' +
     '<h3>Data currency ' + tplTag('fact') + '</h3><p>This report was generated ' + escA(today) + ' from dataset build ' + escA(DATA_BUILD) + '. The finder refreshes official sources automatically every week and its change-alerts feature flags saved codes whose duty, GST or linkage changed between builds.</p>' +
     factTable([
@@ -63466,27 +63464,27 @@ function buildTemplateReport(db, idx, narrative, opts) {
       : '<p>' + tplTag('ai') + ' Second opinion (' + escA(aiCrossNote.by) + ') flags - verify before acting:</p><ul>' + aiCrossNote.issues.map((i) => '<li>' + escA(i) + '</li>').join('') + '</ul>') : '') +
     (aiUsed && !aiCrossNote && !aiHasBoth() ? '<p>' + tplTag('ai') + ' AI sections were written by a single provider and not cross-checked. Add both a Gemini and a Groq key to enable the second-opinion check.</p>' : '') +
     (has('sec14') ? '<h3>What is changing</h3>' + tplNarr(narrative, 'sec14') : tplFallback('change and outlook', chTitle)) +
-    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec14') ? [{ t: 'AI analysis, generated ' + today }] : [])) + '</section>';
+    tplSrc([{ t: SYS[e[0]].src, u: SYS[e[0]].url }].concat(has('sec14') ? [{ t: 'AI model, generated ' + today }] : [])) + '</section>';
 
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">15</span> Documents and compliance checklist</h2>' +
     '<p class="muted">Paperwork typically needed to move this product to or from India. AI-compiled from current official guidance - confirm each item with your CHA or DGFT before shipping.</p>' +
     (has('sec15') ? tplTag('ai') + tplDocTable(narrative.sec15) : '<h3>General export/import paperwork for India ' + tplTag('general') + '</h3><ul class="tpl-check">' + ['Commercial invoice and packing list', 'Bill of lading / airway bill', 'Certificate of origin (needed for FTA preferential duty claims)', 'Import Export Code (IEC) from DGFT, and AD code registration with your bank', 'GST registration; e-invoice and e-way bill where applicable', 'Insurance, and product test certificates where the product demands them (e.g. BIS for regulated goods)'].map((x) => '<li>' + escA(x) + '</li>').join('') + '</ul><p class="muted">Standard process list - confirm the exact set for this product with your CHA or DGFT before shipping.</p>') +
-    tplSrc([{ t: has('sec15') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - confirm against DGFT/CBIC before shipping' : 'No section-specific source - general context' }, { t: 'DGFT', u: 'https://www.dgft.gov.in/' }, { t: 'CBIC', u: 'https://www.cbic.gov.in/' }]) + '</section>';
+    tplSrc([{ t: has('sec15') ? 'AI model (' + geminiAiLabel() + '), generated ' + today + ' - confirm against DGFT/CBIC before shipping' : 'No section-specific source - general context' }, { t: 'DGFT', u: 'https://www.dgft.gov.in/' }, { t: 'CBIC', u: 'https://www.cbic.gov.in/' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">16</span> Logistics and Incoterms</h2>' +
     (has('sec16') ? tplNarr(narrative, 'sec16') : '<h3>Incoterms 2020 quick reference ' + tplTag('general') + '</h3><table class="tpl-table"><thead><tr><th>Term</th><th>Seller delivers</th></tr></thead><tbody>' + [['EXW', 'at own premises - buyer carries everything'], ['FCA', 'to the buyer\'s carrier'], ['FOB', 'on board the vessel (sea only)'], ['CFR', 'pays ocean freight; risk passes on loading'], ['CIF', 'CFR plus insurance'], ['DAP', 'at the named place, ready for unloading'], ['DDP', 'delivered duty paid - maximum seller responsibility']].map((r) => '<tr><td>' + r[0] + '</td><td>' + escA(r[1]) + '</td></tr>').join('') + '</tbody></table><p class="muted">ICC Incoterms 2020, general reference. Agree the term before pricing - it decides who pays freight, insurance and duty.</p>') +
-    tplSrc([{ t: has('sec16') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec16') ? 'AI model (' + geminiAiLabel() + '), generated ' + today : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">17</span> Policy changes and news</h2>' +
     (has('sec17') ? tplNarr(narrative, 'sec17') : '<h3>Where this report stands today ' + tplTag('fact') + '</h3><p>This file has no live news feed. What it does have: the dataset rebuilds automatically from official sources (current build ' + escA(DATA_BUILD) + '), and the finder\'s change-alerts feature flags saved codes whose duty, GST or linkage changed between builds. For same-day policy moves check the CBIC notifications page and the DGFT portal directly.</p>') +
-    tplSrc([{ t: has('sec17') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify against the gazette or notification cited' : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec17') ? 'AI model (' + geminiAiLabel() + '), generated ' + today + ' - verify against the gazette or notification cited' : 'No section-specific source - general context' }]) + '</section>';
   // 18-19 (user wishlist: crisis watch + sanctions status, live-searched when a Groq key exists)
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">18</span> Crisis and risk watch</h2>' +
     (has('sec18') ? tplNarr(narrative, 'sec18') : tplFallback('crisis and risk', chTitle)) +
-    tplSrc([{ t: has('sec18') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - fast-moving situation, verify before acting' : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec18') ? 'AI model (' + geminiAiLabel() + '), generated ' + today + ' - fast-moving situation, verify before acting' : 'No section-specific source - general context' }]) + '</section>';
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">19</span> Sanctions status</h2>' +
     (scomet ? '<p>' + tplTag('fact') + ' This code is on India\u2019s SCOMET export-control list - export licensing applies. See the Documents section.</p>' : '') +
     (has('sec19') ? tplNarr(narrative, 'sec19') : tplFallback('sanctions status', chTitle)) +
     '<p class="muted">Counterparty screening: this file\u2019s main page carries an offline checker against the US OFAC SDN, EU consolidated and DHS UFLPA lists - screen every buyer and seller there before dealing.</p>' +
-    tplSrc([{ t: has('sec19') ? 'AI analysis (' + geminiAiLabel() + '), generated ' + today + ' - verify against OFAC, EU and Indian official notices' : 'No section-specific source - general context' }]) + '</section>';
+    tplSrc([{ t: has('sec19') ? 'AI model (' + geminiAiLabel() + '), generated ' + today + ' - verify against OFAC, EU and Indian official notices' : 'No section-specific source - general context' }]) + '</section>';
 
   // 20 FAQ (deterministic answers from baked data)
   secs += '<section class="tpl-sec"><h2><span class="tpl-num">20</span> FAQ - quick answers</h2>' + (() => {
@@ -63495,8 +63493,8 @@ function buildTemplateReport(db, idx, narrative, opts) {
     if (e[0] === 1 && g) qa.push(['What is the India GST rate?', g[0] + ' IGST under Notification 9/2025-Integrated Tax (Rate) - ' + g[1] + '.']);
     else if (e[5]) qa.push(['What is the duty rate?', e[5] + ' (general/MFN) in ' + SYS[e[0]].name + '.']);
     const tpq = TRADE_PARTNERS[e[1].slice(0, 6)];
-    if (tpq && tpq.x.length) qa.push(['Who buys the most of this from India?', tpq.x[0][0] + ' - ' + fmtUsd(tpq.x[0][1]) + ' in ' + TRADE_PARTNERS_YEAR + ' (UN Comtrade).']);
-    if (tpq && tpq.m.length) qa.push(['Where does India import it from?', tpq.m[0][0] + ' - ' + fmtUsd(tpq.m[0][1]) + ' in ' + TRADE_PARTNERS_YEAR + ' (UN Comtrade).']);
+    if (tpq && tpq.x.length) qa.push(['Who buys the most of this from India?', tpq.x[0][0] + ' - ' + fmtUsd(tpq.x[0][1]) + ' in ' + TRADE_PARTNERS_YEAR + '.']);
+    if (tpq && tpq.m.length) qa.push(['Where does India import it from?', tpq.m[0][0] + ' - ' + fmtUsd(tpq.m[0][1]) + ' in ' + TRADE_PARTNERS_YEAR + '.']);
     const trq = TRADE_TREND[e[1].slice(0, 6)];
     if (trq) { const yq = trq.filter((r) => r[1] || r[2]); if (yq.length >= 2) { const f0 = yq[0], l0 = yq[yq.length - 1]; qa.push(['Is India\'s trade in this product growing?', 'Imports ' + fmtUsd(f0[1]) + ' (' + f0[0] + ') to ' + fmtUsd(l0[1]) + ' (' + l0[0] + '); exports ' + fmtUsd(f0[2]) + ' to ' + fmtUsd(l0[2]) + ' - see the trend chart in section 03.']); } }
     qa.push(['Is this product export-controlled from India?', scomet ? 'Yes - SCOMET entry ' + scomet[0] + '; DGFT export authorisation needed (see section 08).' : (scometUnder.length ? 'Lines under this code are SCOMET-controlled (' + scometUnder.length + ') - see section 08.' : 'No SCOMET code flag in the DGFT mapping - but most of the SCOMET list is description-based, so check the full official list before exporting.')]);
@@ -63505,8 +63503,8 @@ function buildTemplateReport(db, idx, narrative, opts) {
 
   const contents = TPL_SECTIONS.map((s) => '<li><span class="tpl-num">' + s[0] + '</span> ' + esc(s[1]) + '</li>').join('');
   const modeLine = aiUsed
-    ? 'Live AI research edition - narrative sections written by ' + geminiAiLabel() + ' and labelled ANALYTICAL JUDGMENT; all codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file.'
-    : 'Data edition - codes, rates, GST, trade figures and sanctions facts are exact official data baked into this file; narrative sections show general chapter-level context. Add a free Gemini key on the code page to generate the full AI-written edition.' +
+    ? 'Live research edition - narrative sections written with live web research; all codes, rates, GST, trade figures and sanctions facts are exact official data.'
+    : 'Data edition - codes, rates, GST, trade figures and sanctions facts are exact official data; narrative sections show general chapter-level context. Add a free AI key on the code page to generate the full research edition.' +
       (opts.aiError ? ' (AI narrative sections were unavailable this time - the free AI services were busy or at their daily limit. Every figure, code and rate in this report is verified official data.)' : '');
 
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
