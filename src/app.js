@@ -93,6 +93,13 @@ const MISTRAL_MODELS = ['mistral-small-latest', 'open-mistral-nemo', 'ministral-
 const NVIDIA_MODELS = ['meta/llama-3.3-70b-instruct', 'meta/llama-3.1-70b-instruct', 'meta/llama-3.1-8b-instruct'];
 let mistralModelUsed = '', nvidiaModelUsed = '';
 const PROVIDER_ORDER = ['groq', 'gemini', 'mistral', 'nvidia'];
+// Work split (user request 25 Sep 2026): spread traffic so every provider carries a job.
+// Reports stay Groq-first - only Groq has live web search, which report correctness needs.
+// Picks (search best-code, frequent + small) start at NVIDIA, then Mistral - keeps Groq quota for reports.
+// Cross-checks use the remaining providers first so Gemini/Mistral get real daily work too.
+const PICK_ORDER = ['nvidia', 'mistral', 'gemini', 'groq'];
+const PICK_CHECK_ORDER = ['mistral', 'gemini', 'nvidia', 'groq'];
+const REPORT_CHECK_ORDER = ['gemini', 'mistral', 'nvidia', 'groq'];
 const PROVIDER_LABEL = { groq: 'Groq', gemini: 'Gemini', mistral: 'Mistral', nvidia: 'NVIDIA' };
 const builtinPools = { gemini: { off: 0 }, groq: { off: 0 }, mistral: { off: 0 }, nvidia: { off: 0 } };
 const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : kind === 'mistral' ? BUILTIN_MISTRAL_KEYS : kind === 'nvidia' ? BUILTIN_NVIDIA_KEYS : BUILTIN_GEMINI_KEYS).split(',').map((k) => k.trim()).filter(Boolean);
@@ -103,9 +110,9 @@ let aiLiveSearch = false;
 let aiCrossNote = null; // { by, ok, issues } - second-provider fact-check result for reports
 // Second-opinion check: when both providers' keys exist, the other provider reviews the answer.
 let aiCrossBy = null;
-async function aiCrossCall(producer, prompt, opts) {
+async function aiCrossCall(producer, prompt, opts, order) {
   aiCrossBy = null;
-  for (const target of PROVIDER_ORDER) {
+  for (const target of (order || PROVIDER_ORDER)) {
     if (target === producer) continue;
     try {
       if (V.apiKey && ownProvider() === target) { const r = await PROVIDER_CALL[target](V.apiKey, prompt, opts); aiCrossBy = target; return r; }
@@ -293,7 +300,7 @@ async function aiPickText(prompt, opts) {
     try { return await PROVIDER_CALL[p](V.apiKey, prompt, opts); }
     catch (err) {
       if (/not accepted|refused/i.test(err.message || '')) throw err;
-      for (const prov of PROVIDER_ORDER) {
+      for (const prov of PICK_ORDER) {
         if (prov === p) continue;
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
@@ -304,7 +311,7 @@ async function aiPickText(prompt, opts) {
     }
   }
   const errs = [];
-  for (const prov of PROVIDER_ORDER) {
+  for (const prov of PICK_ORDER) {
     if (AI_PROXY_URL) {
       aiSharedKey = false; aiProviderUsed = prov;
       try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (err) { if (!/not configured/i.test(err.message || '')) errs.push(err); }
@@ -1967,7 +1974,7 @@ async function tplNarrative(db, idx, apiKey) {
           'Fact-check an AI-written trade report against official figures. ' + facts + ' India GST and duty rates in the dataset are official. ' +
           'Report JSON: ' + JSON.stringify(obj) + ' ' +
           'Rules: flag only statements that contradict the verified figures above, or specific numbers, companies or dates presented as hard fact that nothing above supports (rough ranges and clearly approximate judgements are fine). Reply ONLY JSON: {"ok":true} or {"ok":false,"issues":["short issue 1","short issue 2"]} - at most 5 issues.',
-          { temperature: 0, maxTokens: 4000 });
+          { temperature: 0, maxTokens: 4000 }, REPORT_CHECK_ORDER);
         if (chk) {
           try {
             const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
@@ -3092,7 +3099,7 @@ async function classifyRun() {
         const by = PROVIDER_LABEL[aiCrossBy] || 'a second provider';
         const chk = await aiCrossCall(aiProviderUsed,
           'Product: "' + text.replace(/"/g, "'") + '". Another AI suggested these HS 2022 6-digit codes for it, best first: ' + clean.map((h) => h.code + ' (' + h.why + ')').join('; ') + '. Are these real HS 2022 subheadings and is the first one the best fit? Reply ONLY JSON: {"agree":true} or {"agree":false,"better":"6-digit code","why":"one short line"}.',
-          { temperature: 0, maxTokens: 4000 });
+          { temperature: 0, maxTokens: 4000 }, PICK_CHECK_ORDER);
         if (chk) {
           try {
             const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
