@@ -28,7 +28,7 @@ await step('ai-gst-draft', draftGst);
 execSync('node build.mjs', { stdio: 'inherit' });
 // ---- safety checks (nothing is committed if these fail) ----
 const fail = (m) => { console.error('CHECK FAILED:', m); process.exit(1); };
-let b = ''; for (let n = 0; n < 66; n++) b += fs.readFileSync(`src/datachunk${n}.ts`, 'utf8').match(/"([A-Za-z0-9+/=]+)"/)[1];
+let b = ''; for (let n = 0; fs.existsSync(`src/datachunk${n}.ts`); n++) b += fs.readFileSync(`src/datachunk${n}.ts`, 'utf8').match(/"([A-Za-z0-9+/=]+)"/)[1]; // chunk count grows with the dataset - was hardcoded 66 and broke the daily run when it crossed
 const rows = JSON.parse(zlib.gunzipSync(Buffer.from(b, 'base64')).toString());
 if (rows.length < 250000) fail('dataset rows ' + rows.length);
 if (rows.some((r) => /<[a-z/][^>]*>/i.test(r[2] || ''))) fail('HTML artifacts in descriptions');
