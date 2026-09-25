@@ -61884,6 +61884,7 @@ const V = { // per-view ephemeral state
   sgap: false, sgapTop: null,
   tdrop: false,
   pw: false,
+  cp: false, cpCountry: '',
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
@@ -63627,6 +63628,45 @@ function marketFinderHtml(e) {
 
 
 // Company lookup: outbound link to ImportYeti's public bills-of-lading search for this HS code (no data baked, link only).
+// Country profile: inverted market data - what a country buys and sells most (top-8 presence only, disclosed).
+function countryProfiles() {
+  if (V.countryProfiles) return V.countryProfiles;
+  const imp = {}, exp = {};
+  for (const c6 in MARKET_IMPORTERS) {
+    for (const r of MARKET_IMPORTERS[c6]) { (imp[r[0]] = imp[r[0]] || []).push([c6, r[1], MARKET_WORLD[c6] || 0]); }
+  }
+  for (const c6 in MARKET_EXPORTERS) {
+    for (const r of MARKET_EXPORTERS[c6]) { (exp[r[0]] = exp[r[0]] || []).push([c6, r[1], MARKET_WORLD_X[c6] || 0]); }
+  }
+  for (const c in imp) imp[c].sort((a, b) => b[1] - a[1]);
+  for (const c in exp) exp[c].sort((a, b) => b[1] - a[1]);
+  V.countryProfiles = { imp: imp, exp: exp, names: Object.keys(Object.assign({}, imp, exp)).sort() };
+  return V.countryProfiles;
+}
+function countryProfileHtml() {
+  const d = countryProfiles();
+  const cur = V.cpCountry && d.imp[V.cpCountry] !== undefined || d.exp[V.cpCountry] !== undefined ? V.cpCountry : null;
+  const opts = d.names.map((n) => '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+  let body = '<p class="muted">Pick a country to see what it imports and exports most.</p>';
+  if (cur) {
+    const mk = (rows, kind) => rows.slice(0, 10).map((r) => {
+      const idx = mfIdxOf(r[0]);
+      const share = r[2] > 0 ? ' (' + ((r[1] / r[2]) * 100).toFixed(1) + '% of world)' : '';
+      return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + esc(r[0]) + '</td><td>' + esc(mfDescOf(r[0])) + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + esc(share) + '</td></tr>';
+    }).join('');
+    const impRows = d.imp[cur] || [], expRows = d.exp[cur] || [];
+    const fta = cur === 'United Arab Emirates' ? '<p><strong>India-UAE CEPA in force</strong> - preferential rates and recent cuts are baked; see the tariff drop finder and any code\'s FTA section.</p>'
+      : cur === 'Australia' ? '<p><strong>Australia-India ECTA in force</strong> - remaining staged cuts went duty-free 1 Jan 2026; see the tariff drop finder.</p>'
+      : '';
+    body = fta +
+      (impRows.length ? '<h4>' + esc(cur) + ' imports most (top lines where it is a world top-8 buyer)</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Imports 2025</th><th>Share</th></tr></thead><tbody>' + mk(impRows) + '</tbody></table></div>' : '<p class="muted">No top-8 import lines for ' + esc(cur) + ' in the baked data.</p>') +
+      (expRows.length ? '<h4>' + esc(cur) + ' exports most (top lines where it is a world top-8 supplier)</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Exports 2025</th><th>Share</th></tr></thead><tbody>' + mk(expRows) + '</tbody></table></div>' : '<p class="muted">No top-8 export lines for ' + esc(cur) + ' in the baked data.</p>');
+  }
+  return '<div class="chip-sec tsum-panel"><h3>Country profile - what a country buys and sells, 2025</h3>' +
+    '<p><select id="cp-country" class="cc-select"><option value="">Pick a country</option>' + opts + '</select></p>' + body +
+    '<p class="muted">Source: UN Comtrade 2025 baked 24 Sep 2026 (all reporting countries). A country appears against a product only when it is among the world\'s top 8 importers or exporters of that line - this is a big-lines profile, not its full trade list. Tap a row for the full code detail. Data only, no advice.</p></div>';
+}
+
 function companyLookupHtml(e) {
   const c6 = e[1].slice(0, 6);
   if (!/^\d{6}$/.test(c6)) return '';
@@ -64371,6 +64411,8 @@ function searchIdleHtml() {
     (V.tdrop ? tdropHomeHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="pw-toggle">' + (V.pw ? 'Hide price watch' : 'Price watch - biggest India export unit-value moves 2024-2025') + '</button></p>' +
     (V.pw ? priceWatchHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="cp-toggle">' + (V.cp ? 'Hide country profile' : 'Country profile - what any country buys and sells most') + '</button></p>' +
+    (V.cp ? countryProfileHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -64623,6 +64665,10 @@ function paintIdle() {
   if (tdt) tdt.addEventListener('click', () => { V.tdrop = !V.tdrop; paintIdle(); });
   const pwt = el('pw-toggle');
   if (pwt) pwt.addEventListener('click', () => { V.pw = !V.pw; paintIdle(); });
+  const cpt = el('cp-toggle');
+  if (cpt) cpt.addEventListener('click', () => { V.cp = !V.cp; paintIdle(); });
+  const cpc = el('cp-country');
+  if (cpc) cpc.addEventListener('change', () => { V.cpCountry = cpc.value; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });
