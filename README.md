@@ -1,40 +1,60 @@
 # Worldwide HSN Code Finder
 
-Free, offline-first tariff code finder covering 20 official systems (WCO HS 2022 + India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru and India SAC), about 310,000 codes, as a single `index.html`.
+Free, offline-first tariff code finder covering 22 official systems (WCO HS 2022 + India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru, China, UAE and India SAC), 340,232 codes, as a single `index.html`.
 
 Live: https://finder-hsn-codee.onrender.com/
 
 ## What it does
-- **Search anything**: product names, trader terms, typo-tolerant ("DISEL" finds diesel), code prefixes. Results group into one row per product; each row leads with the direct deepest national code (India first), never the 6-digit family parent. Open a row for every country's code and duty rate.
-- **Detail + PDF**: full code chain from HS root to national line, GST rates (India), per-code India import/export values (UN Comtrade), and a print/PDF report.
-- **Sanctions check**: baked OFAC + EU lists, refreshed daily; search any party name.
-- **Compare + shortlist + favorites + notes**: side-by-side codes, saved lists, personal notes (all in localStorage).
-- **AI assist, verified**: "Suggest best codes" and report briefs run through the proxy below. AI proposes, code verifies; official data is never AI-generated.
+
+**Find the code**
+- **Search anything**: product names, trader terms, typo-tolerant ("DISEL" finds diesel), code prefixes. One row per product; each row leads with the direct deepest national code (India first), never the 6-digit family parent. Works fully offline - no AI needed to search.
+- **Suggest best codes / search assist**: AI reads the shown matches against your words and points at the fitting rows; on zero matches it suggests better search words.
+- **Reverse lookup**: have a foreign code? Crosswalk it to the India HSN line.
+- **HS 2022 change correlation**: code changed in the HS 2022 revision? The detail page maps old to new (CBSA correlation tables).
+
+**Decide with data (detail page, every feature connected to the code)**
+- Duty rates, GST (India), code chain from HS root to national line.
+- **Trade brief**: one-tap AI paragraph built only from the code's baked official figures (duty, trade values, markets, seasonality, incentives, sanctions), with a verify line.
+- **Plain words**: one-tap plain-English explanation of what the legal code text covers.
+- **Markets**: top importing countries + world total (UN Comtrade, 5,845 codes); **Competitor share**: top exporting countries, India highlighted.
+- **Trade risk + market data**: sanctions status, anti-dumping measures, SCOMET/export-control flags, geopolitics and policy-impact signals, demand and supply facts.
+- **Sanction gap finder**: supply-at-risk lines with alternative suppliers, sanctioned-demand lines with India's rank (mirror statistics for non-reporting countries, marked).
+- **Tariff drop finder**: FTA duty cuts claimable now (India-Australia ECTA, India-UAE CEPA step-downs).
+- **Price watch**: India export unit-value jumps/drops from official quantity data.
+- **Currency impact**: USD-INR move vs this code's trade value, with a worked crore example.
+- **Country compare**: two countries side by side for the same product - duty, documents, market size.
+- **Compare verdict**: AI one-tap verdict on a shortlist, numbers only from baked data.
+- **Seasonality**: India's monthly import/export pattern for the code; **Product intel**: the code's whole picture on one card.
+- **Documents**: export/import document checklists per chapter, per-document AI explainer, export checklist (IEC, ICEGATE, e-Sanchit, certificates, RoDTEP incentive rate), company lookup link (US bills of lading).
+- **Ports for this cargo**: chapter-mapped cargo type -> the government major ports that handle it, with 2024-25 traffic and UN/LOCODEs (official IPA port statistics).
+- **PDF report**: the whole page as a clean print/PDF.
+
+**Home tools**
+- India trade in words (top imports/exports), Country profile (104 countries, what each buys and sells), Trade currencies (30 live INR pairs, ECB/Frankfurter), Payment currency rules (RBI), Port trade statistics (13 major ports, traffic + commodity, official), Port weather (live), **Sea transit time** (any two of 3,319 worldwide ports - NGA World Port Index - straight-line NM + day range), container tracking links, **Live ships near major ports worldwide** (AISStream feed through the proxy, 42 port boxes).
 
 ## Architecture (all free)
 1. **Static site** (Render, this repo root): serves `index.html`, auto-deploys on every push to `main`.
-2. **AI proxy** (`proxy.js`, Render web service): the browser holds no provider keys. The page calls the proxy with a public-by-design `APP_SECRET` speed bump; the proxy attaches the real key from its env and forwards to Gemini / Groq / Mistral / NVIDIA, with key rotation and a 60-calls-per-10-minutes per-IP cap.
-   - Render setup: New Web Service on this repo, start command `node proxy.js`, env:
-     - `APP_SECRET` - the token baked into the public bundle
-     - `GEMINI_KEYS`, `GROQ_KEYS` - comma-separated key pools
-     - `MISTRAL_KEYS`, `NVIDIA_KEYS` - optional comma-separated pools
+2. **AI + AIS proxy** (`proxy.js`, Render web service on the same repo, start command `node proxy.js`): the browser holds no provider keys. The page calls the proxy with a public-by-design `APP_SECRET` speed bump; the proxy attaches the real key from its env and forwards, with per-request shuffled provider order (Groq / Gemini / Mistral), key rotation, failover, and a per-IP rate cap. It also keeps one AISStream websocket open and answers `/ships` with the latest vessels per port box.
+   - Env: `APP_SECRET`, `GEMINI_KEYS`, `GROQ_KEYS`, `MISTRAL_KEYS` (comma-separated pools), `AISSTREAM_KEY` (optional; without it `/ships` answers 503).
 3. **Daily refresh** (GitHub Actions, 03:30 UTC, `.github/workflows/refresh.yml` -> `automate.mjs`): India trade values (Comtrade), description cleanup, OFAC + EU sanctions refresh, watch of all official source pages, rebuild `index.html`, safety checks, commit only if changed. Render redeploys on the commit.
    - Repo secret needed: `COMTRADE_KEY`. Optional: `GEMINI_API_KEY` for the AI jobs below.
 
-## AI automation jobs (Actions, need `GEMINI_API_KEY`)
-Rule: **AI proposes, code verifies.** Nothing unverified is written.
-1. **Search aliases**: Gemini suggests new trader terms daily; every word must match real tariff descriptions or the alias is dropped. Committed automatically.
-2. **GST drafter**: reads new CBIC "Integrated Tax (Rate)" notification PDFs, keeps only items whose code AND rate appear on the same PDF table row, opens a Pull Request (never a direct edit). Optional variable `AUTO_MERGE_GST=1` merges automatically (needs "Allow GitHub Actions to create pull requests").
-3. **Description cleanup**: HTML artifacts removed, content-verified.
+## AI rules
+- **AI proposes, code verifies.** Nothing unverified is written to data.
+- AI surfaces are one-tap and optional; the app works fully without them. AI answers are built only from baked official figures, run through output checks (prompt-echo and garbage detection with retry), and cached locally.
+- Daily AI jobs (need `GEMINI_API_KEY`): search aliases (must match real tariff descriptions), GST notification drafter (opens a PR, never edits directly), description cleanup.
 
 ## Automatic vs. alerted
-- Automatic: India trade values, OFAC + EU sanctions, description cleanup, aliases, rebuild, deploy.
+- Automatic: India trade values, sanctions lists, description cleanup, aliases, rebuild, deploy.
 - Alerted (GitHub Issue "Source changed: ..."): national tariff systems, the India GST page, UFLPA - no stable feed. GST rates are legal data and are never auto-edited from a scraped page.
+
+## Data sources (all official, all free)
+WCO HS 2022, India CBIC/GST notifications + DGFT, USITC HTS, EU TARIC/CN, UK Trade Tariff, Korea Customs, Canada CBSA, Japan Customs, Australia Home Affairs, Brazil NCM, Taiwan Customs, NZ Customs, Norway Tolletaten, Singapore Customs, Israel Tax Authority, Mexico SNICE, Hong Kong C&ED, South Africa SARS, Peru SUNAT, China Customs, UAE FCA, India SAC; UN Comtrade (trade values/partners), OFAC + EU + UN + UK sanctions lists, DGFT SCOMET/Appendix-3, anti-dumping (DGTR/CBIC), RoDTEP notification rates, IPA port statistics, NGA World Port Index, AISStream (live AIS), Open-Meteo (port weather), Frankfurter/ECB (exchange rates).
 
 ## Repo layout
 - `index.html` - the complete finder as one file (what the static site serves)
-- `src/` - dataset + app source (data chunks, GST/trade/sanctions maps, aliases, app.js, style.css)
+- `src/` - dataset + app source (data chunks, GST/trade/market/sanctions/FTA/port maps, aliases, app.js, style.css)
 - `build.mjs` - rebuilds `index.html` from `src/` (`node build.mjs`)
-- `automate.mjs`, `refresh.mjs`, `sanctions-refresh.mjs`, `comtrade-partners.mjs`, `gemini.mjs`, `ai-agent.mjs`, `apply-gst.mjs`, `monitor.mjs` - the daily pipeline
-- `proxy.js` - the AI proxy web service (see above)
+- `automate.mjs`, `refresh.mjs`, `sanctions-refresh.mjs`, `comtrade-*.mjs`, `compute-sancgap.mjs`, `gemini.mjs`, `ai-agent.mjs`, `apply-gst.mjs`, `monitor.mjs` - the daily pipeline and data jobs
+- `proxy.js` - the AI + AIS proxy web service (see above)
 - `render.yaml` - blueprint for the static site
