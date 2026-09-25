@@ -2514,6 +2514,55 @@ function compShareHtml(e) {
     '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026), exports FOB in USD. International 6-digit level - this national line rolls up to HS ' + c6 + '. Data only, no advice.</p></div>';
 }
 
+// Demand gap: cross the world top importers of this line with India's actual export destinations.
+// A big buyer India does not sell to (or reaches with under 1% of its imports) is untapped headroom.
+function demandGapHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const mi = MARKET_IMPORTERS[c6];
+  if (!mi || !mi.length) return '';
+  const world = MARKET_WORLD[c6] || 0;
+  if (world < 25000000) return '';
+  const tp = TRADE_PARTNERS[c6];
+  const t6 = TRADE6[c6];
+  const indiaX = t6 && t6[1] ? t6[1] : 0;
+  const worldX = MARKET_WORLD_X[c6] || 0;
+  const dest = {};
+  if (tp && tp.x) for (const p of tp.x) dest[p[0]] = p[1];
+  const rows = [];
+  let gapCount = 0, gapValue = 0;
+  for (const r of mi) {
+    if (r[0] === 'India') continue;
+    let indiaCell, verdict, isGap;
+    if (tp && tp.x) {
+      const sold = dest[r[0]] || 0;
+      if (sold > 0) {
+        const share = r[1] > 0 ? (100 * sold / r[1]) : 0;
+        indiaCell = fmtUsd(sold) + ' (' + (share < 0.1 ? '<0.1' : share.toFixed(1)) + '% of their imports)';
+        isGap = share < 1;
+        verdict = isGap ? 'Barely reached' : 'Active market';
+      } else {
+        indiaCell = 'Not in India top 5 destinations';
+        isGap = true;
+        verdict = 'Untapped';
+      }
+    } else {
+      indiaCell = 'Destination split not yet baked';
+      isGap = indiaX === 0 || (worldX > 0 && indiaX / worldX < 0.01);
+      verdict = isGap ? 'Likely headroom' : 'India sells worldwide';
+    }
+    if (isGap) { gapCount++; gapValue += r[1]; }
+    rows.push('<tr' + (isGap ? ' class="mf-in"' : '') + '><td>' + esc(r[0]) + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + esc(indiaCell) + '</td><td><strong>' + esc(verdict) + '</strong></td></tr>');
+  }
+  if (!gapCount) return '';
+  const shareLine = worldX > 0 && indiaX > 0
+    ? 'India exported ' + fmtUsd(indiaX) + ' of this line in ' + TRADE_YEAR + ' (' + (100 * indiaX / worldX).toFixed(1) + '% of world exports). '
+    : (indiaX === 0 ? 'India recorded no exports of this line in ' + TRADE_YEAR + '. ' : '');
+  return '<div class="detail-sec mf-panel"><h3>Demand gap - big buyers India barely reaches, ' + MARKET_DATA_YEAR + '</h3>' +
+    '<p>' + esc(shareLine) + '<strong>' + gapCount + ' of these top buyers are untapped or barely reached - ' + esc(fmtUsd(gapValue)) + '</strong> of combined imports where India has under 1% presence. That is the headroom for an exporter on this line.</p>' +
+    '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>Importing country</th><th>Their imports ' + MARKET_DATA_YEAR + '</th><th>India sells there</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' +
+    '<p class="muted">Computed from UN Comtrade ' + MARKET_DATA_YEAR + ' (baked): world top importers x India export destinations. "Untapped" = not among India\'s top 5 export destinations for this line; "barely reached" = under 1% of that country\'s imports. Destination split coverage grows daily - where not yet baked, the verdict uses India\'s world export share. Data only, no advice.</p></div>';
+}
+
 // Price watch: India export unit-value (USD/kg) moves 2024 -> 2025, from baked Comtrade trend data.
 function priceMoves() {
   if (V.priceMoves) return V.priceMoves;
@@ -2701,6 +2750,7 @@ function detailHtml(idx) {
   s += dutyCompareHtml(e);
   s += countryCompareHtml(e);
   s += marketFinderHtml(e);
+  s += demandGapHtml(e);
   s += compShareHtml(e);
   s += companyLookupHtml(e);
   s += sgapDetailHtml(e);
