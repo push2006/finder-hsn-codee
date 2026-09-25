@@ -9,6 +9,7 @@ import { TRADE_CH } from './trademap';
 import { TRADE6 } from './tradevalues';
 import { TRADE_PARTNERS, TRADE_PARTNERS_YEAR } from './tradepartners';
 import { MARKET_IMPORTERS, MARKET_WORLD, MARKET_DATA_YEAR } from './marketdata';
+import { SANCGAP, SANCGAP_YEAR } from './sancgap';
 import { TRADE_TREND, TRADE_TREND_YEARS } from './tradetrend';
 import { TRADE_SEASON, TRADE_SEASON_YEARS } from './tradeseson';
 import { FTA_UAE, FTA_UAE_UNPARSED, FTA_AU } from './fta';
@@ -682,6 +683,7 @@ const S = {
 };
 const V = { // per-view ephemeral state
   mf: false, mfTop: null,
+  sgap: false, sgapTop: null,
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
@@ -2420,6 +2422,54 @@ function marketFinderHtml(e) {
     '<p class="muted">UN Comtrade, every reporting country, partner World, calendar ' + MARKET_DATA_YEAR + ' (baked 24 Sep 2026), imports CIF in USD. International 6-digit level - this national line rolls up to HS ' + c6 + '. Data only, no advice.</p></div>';
 }
 
+
+function sgapData() {
+  if (V.sgapTop) return V.sgapTop;
+  const opps = [], risks = [];
+  for (const c6 in SANCGAP) {
+    const g = SANCGAP[c6];
+    const dmSum = (g.dm || []).reduce((a, r) => a + r[1], 0);
+    const sxSum = (g.sx || []).reduce((a, r) => a + r[1], 0);
+    const indiaVal = g['in'] ? g['in'][1] : 0;
+    if (dmSum > 0) opps.push([c6, dmSum, indiaVal, g['in'] ? g['in'][0] : 0]);
+    if (sxSum > 0) risks.push([c6, sxSum, (g.alt || []).slice(0, 3)]);
+  }
+  opps.sort((a, b) => b[1] - a[1]);
+  risks.sort((a, b) => b[1] - a[1]);
+  V.sgapTop = { opps: opps.slice(0, 15), risks: risks.slice(0, 10), n: Object.keys(SANCGAP).length };
+  return V.sgapTop;
+}
+function sgapHomeHtml() {
+  const d = sgapData();
+  const row = (r, extra) => { const idx = mfIdxOf(r[0]); return '<tr' + (idx !== undefined ? ' class="boom-row" data-open="' + idx + '"' : '') + '><td>' + esc(r[0]) + '</td><td>' + esc(mfDescOf(r[0])) + '</td><td>' + esc(fmtUsd(r[1])) + '</td><td>' + extra + '</td></tr>'; };
+  const oppRows = d.opps.map((r) => row(r, esc(r[2] > 0 ? 'India exports ' + fmtUsd(r[2]) + ' (rank #' + r[3] + ')' : 'India not in top exporters'))).join('');
+  const riskRows = d.risks.map((r) => row(r, esc('Alt: ' + r[2].map((a) => a[0]).join(', ')))).join('');
+  return '<div class="chip-sec tsum-panel"><h3>Sanction gap finder - where sanctions reshape trade, ' + SANCGAP_YEAR + '</h3>' +
+    '<p><strong>Opportunity side:</strong> sanctioned countries still import these products in size - and India\'s exports there are small or missing. <strong>Risk side:</strong> products whose supply depends on sanctioned countries, with the top alternative suppliers. Data only, no advice.</p>' +
+    '<h4>Biggest sanctioned-market import demand (opportunity)</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Sanctioned-market imports</th><th>India position</th></tr></thead><tbody>' + oppRows + '</tbody></table></div>' +
+    '<h4>Biggest supply-at-risk lines (supplier under sanctions)</h4><div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>HS</th><th>Product</th><th>Sanctioned supply</th><th>Alternative suppliers</th></tr></thead><tbody>' + riskRows + '</tbody></table></div>' +
+    '<p class="muted">UN Comtrade ' + SANCGAP_YEAR + ' (every reporter) cross-read with the baked OFAC/EU/UN/UK country sanctions snapshot. Countries marked * stopped self-reporting to Comtrade - their values come from partner (mirror) records. ' + d.n.toLocaleString('en-US') + ' product lines carry sanctions exposure. Tap a row for the full code detail.</p></div>';
+}
+function sgapDetailHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const g = SANCGAP[c6];
+  if (!g) return '';
+  const trow = (r, star) => '<tr><td>' + esc(r[0]) + '</td><td>' + esc(fmtUsd(r[1])) + '</td></tr>';
+  let out = '<div class="detail-sec mf-panel"><h3>Sanctions &amp; supply-gap check, ' + SANCGAP_YEAR + '</h3>';
+  if (g.sx && g.sx.length) {
+    out += '<p><strong>Supply at sanctions risk:</strong> these sanctioned countries are among the world\'s top suppliers of this line. If sanctions tighten, supply shifts:</p>' +
+      '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>Sanctioned supplier</th><th>Exports ' + SANCGAP_YEAR + '</th></tr></thead><tbody>' + g.sx.map(trow).join('') + '</tbody></table></div>';
+    if (g.alt && g.alt.length) out += '<p><strong>Who else can supply:</strong> ' + g.alt.map((a) => esc(a[0]) + ' (' + esc(fmtUsd(a[1])) + ')').join(', ') + '.</p>';
+  }
+  if (g.dm && g.dm.length) {
+    out += '<p><strong>Sanctioned-market demand:</strong> these sanctioned countries imported this much of the line in ' + SANCGAP_YEAR + ' - payment, insurance and shipping routes are restricted:</p>' +
+      '<div class="report-table-wrap"><table class="report-table tsum-table"><thead><tr><th>Sanctioned importer</th><th>Imports ' + SANCGAP_YEAR + '</th></tr></thead><tbody>' + g.dm.map(trow).join('') + '</tbody></table></div>';
+  }
+  if (g['in']) out += '<p>India is exporter rank <strong>#' + g['in'][0] + '</strong> on this line with ' + esc(fmtUsd(g['in'][1])) + ' of exports.</p>';
+  out += '<p class="muted">UN Comtrade ' + SANCGAP_YEAR + ' + baked OFAC/EU/UN/UK country sanctions snapshot (23 Sep 2026). * = country stopped self-reporting to Comtrade; value reconstructed from partner (mirror) records. Data only, no advice.</p></div>';
+  return out;
+}
+
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -2456,6 +2506,7 @@ function detailHtml(idx) {
   s += dutyCompareHtml(e);
   s += countryCompareHtml(e);
   s += marketFinderHtml(e);
+  s += sgapDetailHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
@@ -2987,6 +3038,8 @@ function searchIdleHtml() {
     (V.tsum ? tsumPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="mf-toggle">' + (V.mf ? 'Hide market finder' : 'Market finder - top importing countries for any product') + '</button></p>' +
     (V.mf ? mfPanelHtml() : '') +
+    '<p><button class="file-button is-compact" data-variant="secondary" id="sgap-toggle">' + (V.sgap ? 'Hide sanction gap finder' : 'Sanction gap finder - where sanctions reshape trade') + '</button></p>' +
+    (V.sgap ? sgapHomeHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
     (V.ships ? '<div id="ships-slot"></div>' : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="payc-toggle">' + (V.payc ? 'Hide payment currency rules' : 'Payment currency rules - which currency can you invoice in (RBI)') + '</button></p>' +
@@ -3233,6 +3286,8 @@ function paintIdle() {
   if (tsm) tsm.addEventListener('click', () => { V.tsum = !V.tsum; paintIdle(); });
   const mft = el('mf-toggle');
   if (mft) mft.addEventListener('click', () => { V.mf = !V.mf; paintIdle(); });
+  const sgt = el('sgap-toggle');
+  if (sgt) sgt.addEventListener('click', () => { V.sgap = !V.sgap; paintIdle(); });
   Array.prototype.forEach.call(slot.querySelectorAll('[data-boomf]'), (b) => {
     b.addEventListener('click', () => { V.boomFlow = b.getAttribute('data-boomf'); paintIdle(); });
   });

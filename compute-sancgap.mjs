@@ -15,6 +15,17 @@ const rowsOf = (body) => [...body.matchAll(/\["([^"]+)", (\d+)\]/g)].map((m) => 
 
 const imp = load('src/marketdata.ts', /'(\d{6})': \[((?:\[[^\]]*\](?:, )?)+)\]/g);
 const exp = load('src/marketexp.ts', /'(\d{6})': \[((?:\[[^\]]*\](?:, )?)+)\]/g);
+// Mirror data: sanctioned countries that stopped self-reporting (Russia etc.) -
+// their trade reconstructed from partner records. mir[country][code] = [theirExports, theirImports].
+const mirSrc = fs.readFileSync('src/mirrordata.ts', 'utf8');
+const mir = {};
+for (const m of mirSrc.matchAll(/"([^"]+)": \{ ([^}]*) \}/g)) {
+  const per = {};
+  for (const c of m[2].matchAll(/'(\d{6})': \[(\d+), (\d+)\]/g)) per[c[1]] = [parseInt(c[2], 10), parseInt(c[3], 10)];
+  mir[m[1]] = per;
+}
+const MIR_NAME = { 'Russia': /^(Russian Federation|Russia)$/i };
+function mirrorName(comtradeName) { return null; } // mirror keyed by SANC_ZONES names directly
 
 // SANC_ZONES country -> zone. Map Comtrade reporter names onto the zone list.
 const zs = fs.readFileSync('src/sanc.ts', 'utf8');
@@ -45,6 +56,14 @@ for (const code of codes) {
   const ex = exp[code] ? rowsOf(exp[code]) : [];
   const dm = im.filter((r) => { const z = zoneOf(r[0]); return z && z.z === 1; }).map((r) => [r[0], r[1]]);
   const sx = ex.filter((r) => { const z = zoneOf(r[0]); return z && z.z === 1; }).map((r) => [r[0], r[1]]);
+  // Merge mirror rows for non-self-reporting red-zone countries (value, marked with *).
+  for (const [cn, per] of Object.entries(mir)) {
+    const row = per[code];
+    if (!row) continue;
+    if (row[1] > 0 && !dm.some((r) => zoneOf(r[0]) && zoneOf(r[0]).c === cn)) dm.push([cn + '*', row[1]]);
+    if (row[0] > 0 && !sx.some((r) => zoneOf(r[0]) && zoneOf(r[0]).c === cn)) sx.push([cn + '*', row[0]]);
+  }
+  dm.sort((a, b) => b[1] - a[1]); sx.sort((a, b) => b[1] - a[1]);
   const alt = ex.filter((r) => !zoneOf(r[0])).slice(0, 5);
   let india = null;
   ex.forEach((r, i) => { if (r[0] === 'India') india = [i + 1, r[1]]; });
@@ -60,7 +79,8 @@ let out = `// Sanction-gap exposure by 6-digit HS code, calendar year ${year}.\n
   `// (SANC_ZONES, baked 23 Sep 2026: OFAC/EU/UN/UK programmes). dm = red-zone countries among the\n` +
   `// code's top importers (demand at sanctions risk); sx = red-zone countries among top exporters\n` +
   `// (supply at sanctions risk); alt = top exporters not on any sanctions list (alternative\n` +
-  `// suppliers); in = India's rank and export value among all exporters.\n` +
+  `// suppliers); in = India's rank and export value among all exporters. Countries marked *\n` +
+  `// stopped self-reporting to Comtrade - their values come from partner (mirror) records.\n` +
   `// Computed ${new Date().toISOString().slice(0, 10)} - coverage ${Object.keys(gap).length} codes.\n` +
   `export const SANCGAP_YEAR = ${year};\n` +
   `export const SANCGAP: Record<string, { dm?: [string, number][]; sx?: [string, number][]; alt?: [string, number][]; in?: [number, number] }> = {\n`;
