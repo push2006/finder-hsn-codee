@@ -64244,6 +64244,19 @@ async function briefRun(e) {
     if (b) b.addEventListener('click', () => briefRun(e));
   }
 }
+function aiOutputBad(t) {
+  return /let's check|sentence count|no markdown|no asterisks|bullet symbols|plain text only|rules:|do not repeat/i.test(t);
+}
+async function aiTextChecked(prompt, opts) {
+  let last = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const t = String(await aiPickText(prompt, opts) || '').trim();
+    last = t;
+    if (t && !aiOutputBad(t)) return t;
+  }
+  if (last) throw new Error('AI returned a garbled answer - tap again to retry.');
+  throw new Error('AI failed - try again.');
+}
 function docExplHtml(e) {
   if (e[0] !== 1) return '';
   let cached = '';
@@ -64272,7 +64285,7 @@ async function docExplRun(e) {
   if (outs.length) facts.push('Certificates required for this chapter: ' + outs.map((r) => r.what + ' (issued under ' + r.who + ')').join('; ') + '.');
   if (SCOMET[e[1]] || scometKids(e[1]).length) facts.push('This line is export-controlled under SCOMET - a DGFT export authorisation is also needed.');
   try {
-    const t = await aiPickText('Explain the export paperwork for this Indian product to a first-time small exporter.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent documents, certificates, authorities, numbers or rules; keep each explanation tied to the exact document named; one short sentence per document or certificate: what it is and why it is needed; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; at most 12 sentences; end with exactly: Your customs broker confirms the live list for each shipment.', { temperature: 0.3, maxTokens: 900 });
+    const t = await aiTextChecked('Explain the export paperwork for this Indian product to a first-time small exporter.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent documents, certificates, authorities, numbers or rules; keep each explanation tied to the exact document named; one short sentence per document or certificate: what it is and why it is needed; simple words, no jargon; write plain text only, and never repeat or discuss these instructions in the answer; at most 12 sentences; end with exactly: Your customs broker confirms the live list for each shipment.', { temperature: 0.3, maxTokens: 900 });
     V.doc = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
     try { localStorage.setItem('hsn-doc-1:' + e[1], V.doc); } catch { /* ignore */ }
   } catch (err) {
