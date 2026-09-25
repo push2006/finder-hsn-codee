@@ -62818,10 +62818,10 @@ function docsHtml(chapter) {
     }
     return rows.map((t) => '<li>' + esc(t) + '</li>').join('');
   };
-  return '<div class="detail-sec"><h3>Shipping documents &amp; India ports</h3>' +
+  return '<div class="detail-sec"><h3>Shipping documents</h3>' +
     '<h4>Exporting from India</h4><ul class="certs-l">' + mk(DOC_BASE_OUT, 'out') + '</ul>' +
     '<h4>Importing into India</h4><ul class="certs-l">' + mk(DOC_BASE_IN, 'in') + '</ul>' +
-    '<h4>Main Indian ports</h4><div class="ports-grid">' + PORTS.map((pt) => '<div class="port-chip"><strong>' + esc(pt[0]) + '</strong> ' + esc(pt[1]) + ' <span class="muted">' + esc(pt[3]) + '</span></div>').join('') + '</div>' +
+
     '<p class="muted">Port traffic and commodity-wise import/export statistics now live in one place - the Port trade statistics panel on the home page.</p>' +
     '<p class="muted">' + esc(DOC_SRC) + '</p></div>';
 }
@@ -64307,6 +64307,27 @@ async function docExplRun(e) {
     if (b) b.addEventListener('click', () => docExplRun(e));
   }
 }
+const PORT_LOCODE = { 'Paradip': 'INPRP1', 'Deendayal (Kandla)': 'INKDL1', 'JNPT (Nhava Sheva)': 'INNSA1', 'Visakhapatnam': 'INVTZ1', 'Mumbai': 'INBOM1', 'Chennai': 'INMAA1', 'Kamarajar (Ennore)': 'INENN1', 'SMPA Haldia': 'INHAL1', 'New Mangalore': 'INNML1', 'V.O.C. (Tuticorin)': 'INTUT1', 'Cochin': 'INCOK1', 'Mormugao': 'INMRM1', 'SMPA Kolkata DS': 'INCCU1' };
+function portCargoHtml(e) {
+  if (e[0] !== 1) return '';
+  const ch = parseInt(e[4], 10);
+  if (!ch) return '';
+  let cat, why;
+  if (ch >= 25 && ch <= 26) { cat = ['iron ore', 'bulk']; why = 'ores and minerals move as dry bulk'; }
+  else if (ch === 27) { cat = ['POL', 'coal']; why = 'mineral fuels, oils and coal move as liquid or dry bulk'; }
+  else if (ch >= 1 && ch <= 24) { cat = ['containers', 'general']; why = 'food and agri cargo moves bagged in containers or as break-bulk'; }
+  else if (ch >= 28 && ch <= 40) { cat = ['containers', 'POL', 'liquid']; why = 'chemicals, pharma, plastics and rubber move as liquid bulk or in containers'; }
+  else if (ch >= 44 && ch <= 49) { cat = ['containers']; why = 'wood, paper and pulp products mostly move in containers'; }
+  else if (ch >= 50 && ch <= 67) { cat = ['containers']; why = 'textiles, garments and footwear move in containers'; }
+  else if (ch >= 68 && ch <= 83) { cat = ['containers', 'bulk']; why = 'stone, glass, metals and hardware move in containers or as break-bulk'; }
+  else { cat = ['containers']; why = 'machinery, vehicles, electronics and other manufactures move in containers'; }
+  const hits = PORT_STATS.filter((r) => r[0] !== 'ALL MAJOR PORTS' && cat.some((c) => String(r[4]).toLowerCase().indexOf(c) >= 0));
+  const rows = (hits.length ? hits : PORT_STATS.filter((r) => String(r[4]).indexOf('containers') >= 0)).slice(0, 6);
+  return '<div class="detail-sec"><h3>Ports for this cargo - where it typically ships</h3>' +
+    '<p class="muted">' + esc(why.charAt(0).toUpperCase() + why.slice(1)) + '. Major government ports handling that cargo type, with total 2024-25 traffic:</p>' +
+    '<div class="ports-grid">' + rows.map((r) => '<div class="port-chip"><strong>' + esc(PORT_LOCODE[r[0]] || '') + '</strong> ' + esc(r[0]) + ' - ' + (Math.round(r[3] / 10) / 100).toFixed(2) + ' MT <span class="muted">' + esc(r[4]) + '</span></div>').join('') + '</div>' +
+    '<p class="muted">Official port statistics track cargo types, not HS codes - this lists the government major ports that handle this cargo type. Private ports (Mundra, Pipavav, Krishnapatnam) also move large volumes. Your forwarder picks the actual port and terminal.</p></div>';
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -64372,6 +64393,7 @@ function detailHtml(idx) {
   s += rodtepHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
+  s += portCargoHtml(e);
   s += exportChecklistHtml(e);
   s += docExplHtml(e);
   s += routeRiskHtml();
