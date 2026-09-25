@@ -61292,9 +61292,11 @@ let mistralModelUsed = '', nvidiaModelUsed = '';
 const PROVIDER_ORDER = ['groq', 'gemini', 'mistral', 'nvidia'];
 // Work split (user request 25 Sep 2026): spread traffic so every provider carries a job.
 // Reports stay Groq-first - only Groq has live web search, which report correctness needs.
-// Picks (search best-code, frequent + small) start at NVIDIA, then Mistral - keeps Groq quota for reports.
+// Picks (search best-code, frequent + small) start at Mistral, then Gemini - keeps Groq quota for reports.
+// NVIDIA has no proxy key today (user: three working APIs is fine, 25 Sep 2026); it stays in the chain
+// so it joins automatically if a key is ever added. Skipping it here avoids 3 dead proxy calls per pick.
 // Cross-checks use the remaining providers first so Gemini/Mistral get real daily work too.
-const PICK_ORDER = ['nvidia', 'mistral', 'gemini', 'groq'];
+const PICK_ORDER = ['mistral', 'gemini', 'nvidia', 'groq'];
 const PICK_CHECK_ORDER = ['mistral', 'gemini', 'nvidia', 'groq'];
 const REPORT_CHECK_ORDER = ['gemini', 'mistral', 'nvidia', 'groq'];
 const PROVIDER_LABEL = { groq: 'Groq', gemini: 'Gemini', mistral: 'Mistral', nvidia: 'NVIDIA' };
