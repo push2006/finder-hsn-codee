@@ -63574,27 +63574,27 @@ function buildTemplateReport(db, idx, narrative, opts) {
     '</tbody></table>' +
     '<h3>Contents</h3><ol class="tpl-contents">' + contents + '</ol></div>' +
     '<div class="tpl-page"><h2>How to use this report</h2>' +
-    '<p>Every statement in this report carries one of two labels:</p>' +
-    '<p>' + tplTag('fact') + '</p><p><strong>Verified fact.</strong> Exact data baked into this file from official government and WCO sources: tariff codes, legal descriptions, duty rates, GST rates, India trade totals and sanctions list contents. Each carries its source and data date. Rates change - verify against the official source before filing.</p>' +
-    '<p>' + tplTag('ai') + '</p><p><strong>Analytical judgment.</strong> Interpretation and context - market reading, opportunities, risks. AI-assisted sections are written by ' + geminiAiLabel() + ' on the report date; general-context sections are chapter-level orientation only. Judgment can be wrong; act on it only after your own verification.</p>' +
+    '<p>Every figure, code and rate in this report is exact official data with its data date. Narrative sections are analysis and context - market reading, opportunities, risks; judgment can be wrong, so act on it only after your own verification. Rates change - verify against the official portal before filing.</p>' +
     '<p class="muted">This report is research support, not legal, tax or customs advice.</p></div>' +
     secs +
-    '<div class="tpl-foot">Copyright (c) 2026 Push. All rights reserved. - Product Research Report - ' + esc(fmtCode(e[0], e[1])) + ' - compiled from the official sources cited in each section; verify before filing.</div>' +
+    '<div class="tpl-foot">Copyright (c) 2026 Push. All rights reserved. - Product Research Report - ' + esc(fmtCode(e[0], e[1])) + ' - verify before filing.</div>' +
     '<script>window.addEventListener("load",function(){var PH=' + TPL_PAGE_H + ';var kids=Array.prototype.slice.call(document.body.children).filter(function(k){return k.classList.contains("tpl-page")||k.classList.contains("tpl-sec");});var total=0;var stamps=[];kids.forEach(function(k){var pages=Math.max(1,Math.ceil(k.offsetHeight/(PH-40)));k.style.minHeight=(pages*PH)+"px";k.style.position="relative";for(var j=0;j<pages;j++){total++;var d=document.createElement("div");d.className="pgnum";d.style.top=((j+1)*PH-30)+"px";k.appendChild(d);stamps.push(d);}});stamps.forEach(function(d,i){d.textContent="Page "+(i+1)+" of "+total;});});</scr' + 'ipt>' +
     '</body></html>';
 }
 
-async function openTemplateReport(db, idx) {
+async function openTemplateReport(db, idx, w) {
   let narrative = null, aiError = '';
   if (aiAvailable()) {
     try { narrative = await tplNarrative(db, idx, V.apiKey); } catch (err) { aiError = err.message || 'AI call failed'; }
   }
   const html = buildTemplateReport(db, idx, narrative, { aiError });
-  const w = window.open('', '_blank');
+  if (!w) w = window.open('', '_blank');
   if (!w) { V.briefError = 'Popup blocked - allow popups for this page to open the report.'; paintDetail(); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  try {
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  } catch (err) { V.briefError = 'Could not open the report window - allow popups for this page.'; paintDetail(); }
 }
 
 /* ---------- detail view ---------- */
@@ -64081,8 +64081,10 @@ function paintDetail() {
       if (k) { try { k.scrollIntoView({ block: 'center' }); } catch { /* ignore */ } try { k.focus(); } catch { /* ignore */ } }
       return;
     }
+    const w = window.open('', '_blank');
+    if (w) { try { w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Writing report</title></head><body style="font-family:-apple-system,Arial,sans-serif;padding:48px;color:#1a2332">Writing the report with AI - a few seconds...</body></html>'); w.document.close(); } catch (e) { /* ignore */ } }
     V.needKey = false; V.busy = true; V.briefError = null; paintDetail();
-    openTemplateReport(db, idx).finally(() => { V.busy = false; if (S.sel === idx) paintDetail(); });
+    openTemplateReport(db, idx, w).finally(() => { V.busy = false; if (S.sel === idx) paintDetail(); });
   });
   el('d-copy').addEventListener('click', () => {
     const u = location.href.split('#')[0] + '#code=' + key;
