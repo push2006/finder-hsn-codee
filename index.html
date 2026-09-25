@@ -64244,6 +64244,50 @@ async function briefRun(e) {
     if (b) b.addEventListener('click', () => briefRun(e));
   }
 }
+function docExplHtml(e) {
+  if (e[0] !== 1) return '';
+  let cached = '';
+  try { cached = localStorage.getItem('hsn-doc-1:' + e[1]) || ''; } catch { /* ignore */ }
+  const body = V.doc || cached;
+  let inner;
+  if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI plain-words reading of the document and certificate list below - the list itself, not this summary, is what a shipment follows.</p>';
+  else if (V.docErr) inner = '<p class="muted">' + esc(V.docErr) + '</p>';
+  else inner = '<p class="muted">One tap: AI reads the export document and certificate list and explains each one in plain words - what it is, who issues it, and why customs or the buyer asks for it.</p>';
+  return '<div class="detail-sec no-print" id="doc-card"><h3>Documents explained - plain words</h3><div id="doc-slot">' + inner + '</div>' +
+    '<p><button class="file-button is-compact" id="doc-go"' + (V.docBusy ? ' disabled' : '') + '>' + (V.docBusy ? 'Writing...' : (body ? 'Rewrite explanation' : 'Explain the documents')) + '</button></p></div>';
+}
+async function docExplRun(e) {
+  if (V.docBusy) return;
+  V.docBusy = true; V.docErr = null;
+  const slot0 = el('doc-slot');
+  if (slot0) slot0.innerHTML = '<p class="muted">Writing explanation...</p>';
+  const b0 = el('doc-go'); if (b0) { b0.disabled = true; b0.textContent = 'Writing...'; }
+  const ch = parseInt(e[4], 10);
+  const facts = ['Product: ' + pretty(e[2]) + ' (India HSN ' + e[1] + ', chapter ' + e[4] + ').'];
+  const docs = DOC_BASE_OUT.slice();
+  if (ch) { for (const r of DOC_EXTRA) { if (ch >= r[0] && ch <= r[1] && (r[2] === 'both' || r[2] === 'out')) docs.push(r[3]); } }
+  facts.push('Documents this chapter exports with: ' + docs.join('; ') + '.');
+  const outs = [];
+  if (ch) { for (const r of CERT_RULES) { if (ch >= r.from && ch <= r.to && r.side === 'out') outs.push(r); } }
+  if (outs.length) facts.push('Certificates required for this chapter: ' + outs.map((r) => r.what + ' (issued under ' + r.who + ')').join('; ') + '.');
+  if (SCOMET[e[1]] || scometKids(e[1]).length) facts.push('This line is export-controlled under SCOMET - a DGFT export authorisation is also needed.');
+  try {
+    const t = await aiPickText('Explain the export paperwork for this Indian product to a first-time small exporter.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent documents, certificates, authorities, numbers or rules; keep each explanation tied to the exact document named; one short sentence per document or certificate: what it is and why it is needed; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; at most 12 sentences; end with exactly: Your customs broker confirms the live list for each shipment.', { temperature: 0.3, maxTokens: 900 });
+    V.doc = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
+    try { localStorage.setItem('hsn-doc-1:' + e[1], V.doc); } catch { /* ignore */ }
+  } catch (err) {
+    V.docErr = err.message || 'AI failed - try again.';
+  }
+  V.docBusy = false;
+  const old = el('doc-card');
+  if (old && S.sel !== null) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = docExplHtml(e);
+    old.replaceWith(wrap.firstChild);
+    const b = el('doc-go');
+    if (b) b.addEventListener('click', () => docExplRun(e));
+  }
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -64310,6 +64354,7 @@ function detailHtml(idx) {
   s += sancHtml();
   s += docsHtml(e[4]);
   s += exportChecklistHtml(e);
+  s += docExplHtml(e);
   s += routeRiskHtml();
   s += originDutyHtml(e);
   if (path.length > 1) {
@@ -64370,6 +64415,8 @@ function paintDetail() {
   if (plB) plB.addEventListener('click', () => plainWordsRun(e));
   const brB = el('brief-go');
   if (brB) brB.addEventListener('click', () => briefRun(db.entries[S.sel]));
+  const dcB = el('doc-go');
+  if (dcB) dcB.addEventListener('click', () => docExplRun(db.entries[S.sel]));
   if (el('lc-goods')) {
     const lcUpd = () => paintLanded(e);
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
@@ -65242,7 +65289,7 @@ function setNote(k, v) {
 }
 function openEntry(i) {
   S.sel = i; S.cmpA = null; S.cmpB = null; S.showList = false;
-  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false; V.plain = null; V.plainBusy = false; V.plainErr = null; V.brief = null; V.briefBusy = false; V.briefErr = null;
+  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false; V.plain = null; V.plainBusy = false; V.plainErr = null; V.brief = null; V.briefBusy = false; V.briefErr = null; V.doc = null; V.docBusy = false; V.docErr = null;
   const e = S.db.entries[i];
   const k = e[0] + ':' + e[1];
   try { history.replaceState(null, '', '#code=' + k); } catch { /* ignore */ }
