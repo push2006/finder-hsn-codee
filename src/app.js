@@ -93,16 +93,19 @@ const GEMINI_MODELS = [GEMINI_MODEL, 'gemini-3.7-flash', 'gemini-3.6-flash', 'ge
 const MISTRAL_MODELS = ['mistral-small-latest', 'open-mistral-nemo', 'ministral-8b-latest'];
 const NVIDIA_MODELS = ['meta/llama-3.3-70b-instruct', 'meta/llama-3.1-70b-instruct', 'meta/llama-3.1-8b-instruct'];
 let mistralModelUsed = '', nvidiaModelUsed = '';
-const PROVIDER_ORDER = ['groq', 'gemini', 'mistral', 'nvidia'];
-// Work split (user request 25 Sep 2026): spread traffic so every provider carries a job.
-// Reports stay Groq-first - only Groq has live web search, which report correctness needs.
-// Picks (search best-code, frequent + small) start at Mistral, then Gemini - keeps Groq quota for reports.
-// NVIDIA has no proxy key today (user: three working APIs is fine, 25 Sep 2026); it stays in the chain
-// so it joins automatically if a key is ever added. Skipping it here avoids 3 dead proxy calls per pick.
-// Cross-checks use the remaining providers first so Gemini/Mistral get real daily work too.
-const PICK_ORDER = ['mistral', 'gemini', 'nvidia', 'groq'];
-const PICK_CHECK_ORDER = ['mistral', 'gemini', 'nvidia', 'groq'];
-const REPORT_CHECK_ORDER = ['gemini', 'mistral', 'nvidia', 'groq'];
+// Work split (user request 25 Sep 2026): spread quota use evenly across the three keyed
+// providers - shuffle the try-order per request (123, 321, 213, 312...) instead of pinning
+// each job to one provider. Reports and picks both draw from the shuffled chain; Groq and
+// Gemini still bring live web search to reports when their turn comes.
+// NVIDIA has no proxy key today (user: three working APIs is fine, 25 Sep 2026); it stays last
+// so it joins automatically if a key is ever added.
+const KEYED_PROVIDERS = ['groq', 'gemini', 'mistral'];
+function shuffleProviders() {
+  const arr = KEYED_PROVIDERS.slice();
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+  arr.push('nvidia');
+  return arr;
+}
 const PROVIDER_LABEL = { groq: 'Groq', gemini: 'Gemini', mistral: 'Mistral', nvidia: 'NVIDIA' };
 const builtinPools = { gemini: { off: 0 }, groq: { off: 0 }, mistral: { off: 0 }, nvidia: { off: 0 } };
 const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : kind === 'mistral' ? BUILTIN_MISTRAL_KEYS : kind === 'nvidia' ? BUILTIN_NVIDIA_KEYS : BUILTIN_GEMINI_KEYS).split(',').map((k) => k.trim()).filter(Boolean);
@@ -115,7 +118,7 @@ let aiCrossNote = null; // { by, ok, issues } - second-provider fact-check resul
 let aiCrossBy = null;
 async function aiCrossCall(producer, prompt, opts, order) {
   aiCrossBy = null;
-  for (const target of (order || PROVIDER_ORDER)) {
+  for (const target of (order || shuffleProviders())) {
     if (target === producer) continue;
     try {
       if (V.apiKey && ownProvider() === target) { const r = await PROVIDER_CALL[target](V.apiKey, prompt, opts); aiCrossBy = target; return r; }
@@ -297,13 +300,14 @@ const nvidiaPost = (apiKey, prompt, opts) => oaiPoolPost('nvidia', 'https://inte
 const PROVIDER_CALL = { groq: (k, p, o) => groqPost(k, p, o), gemini: (k, p, o) => geminiText(k, p, o, false), mistral: (k, p, o) => mistralPost(k, p, o), nvidia: (k, p, o) => nvidiaPost(k, p, o) };
 async function aiPickText(prompt, opts) {
   aiLiveSearch = false;
+  const order = shuffleProviders();
   if (V.apiKey) {
     const p = ownProvider();
     aiSharedKey = false; aiProviderUsed = p;
     try { return await PROVIDER_CALL[p](V.apiKey, prompt, opts); }
     catch (err) {
       if (/not accepted|refused/i.test(err.message || '')) throw err;
-      for (const prov of PICK_ORDER) {
+      for (const prov of order) {
         if (prov === p) continue;
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
@@ -314,7 +318,7 @@ async function aiPickText(prompt, opts) {
     }
   }
   const errs = [];
-  for (const prov of PICK_ORDER) {
+  for (const prov of order) {
     if (AI_PROXY_URL) {
       aiSharedKey = false; aiProviderUsed = prov;
       try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (err) { if (!/not configured/i.test(err.message || '')) errs.push(err); }
@@ -330,6 +334,7 @@ async function aiPickText(prompt, opts) {
 }
 async function aiReportText(prompt, grounded, opts) {
   aiLiveSearch = false;
+  const order = shuffleProviders();
   const geminiReport = (key, shared) => { aiSharedKey = shared; aiProviderUsed = 'gemini'; return geminiText(key, prompt, opts, grounded); };
   const groqReport = async (key, shared) => {
     // Direct Groq keys can use the built-in browser_search tool for live-web reports.
@@ -343,7 +348,7 @@ async function aiReportText(prompt, grounded, opts) {
     try { return p === 'groq' ? await groqReport(V.apiKey, false) : p === 'gemini' ? await geminiReport(V.apiKey, false) : (aiSharedKey = false, aiProviderUsed = p, await PROVIDER_CALL[p](V.apiKey, prompt, opts)); }
     catch (err) {
       if (/not accepted|refused/i.test(err.message || '')) throw err;
-      for (const prov of PROVIDER_ORDER) {
+      for (const prov of order) {
         if (prov === p) continue;
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
@@ -353,7 +358,7 @@ async function aiReportText(prompt, grounded, opts) {
     }
   }
   const errs = [];
-  for (const prov of PROVIDER_ORDER) {
+  for (const prov of order) {
     if (AI_PROXY_URL) {
       aiSharedKey = false; aiProviderUsed = prov;
       try { return prov === 'groq' ? await groqReport('', true) : prov === 'gemini' ? await geminiReport('', true) : await PROVIDER_CALL[prov]('', prompt, opts); } catch (err) { if (!/not configured/i.test(err.message || '')) errs.push(err); }
@@ -2053,7 +2058,7 @@ async function tplNarrative(db, idx, apiKey) {
           'Fact-check an AI-written trade report against official figures. ' + facts + ' India GST and duty rates in the dataset are official. ' +
           'Report JSON: ' + JSON.stringify(obj) + ' ' +
           'Rules: flag only statements that contradict the verified figures above, or specific numbers, companies or dates presented as hard fact that nothing above supports (rough ranges and clearly approximate judgements are fine). Reply ONLY JSON: {"ok":true} or {"ok":false,"issues":["short issue 1","short issue 2"]} - at most 5 issues.',
-          { temperature: 0, maxTokens: 4000 }, REPORT_CHECK_ORDER);
+          { temperature: 0, maxTokens: 4000 }, shuffleProviders());
         if (chk) {
           try {
             const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
@@ -3316,7 +3321,7 @@ async function classifyRun() {
         const by = PROVIDER_LABEL[aiCrossBy] || 'a second provider';
         const chk = await aiCrossCall(aiProviderUsed,
           'Product: "' + text.replace(/"/g, "'") + '". Another AI suggested these HS 2022 6-digit codes for it, best first: ' + clean.map((h) => h.code + ' (' + h.why + ')').join('; ') + '. Are these real HS 2022 subheadings and is the first one the best fit? Reply ONLY JSON: {"agree":true} or {"agree":false,"better":"6-digit code","why":"one short line"}.',
-          { temperature: 0, maxTokens: 4000 }, PICK_CHECK_ORDER);
+          { temperature: 0, maxTokens: 4000 }, shuffleProviders());
         if (chk) {
           try {
             const cj = JSON.parse(chk.slice(chk.indexOf('{'), chk.lastIndexOf('}') + 1));
