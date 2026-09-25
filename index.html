@@ -64261,6 +64261,7 @@ function docExplHtml(e) {
   if (e[0] !== 1) return '';
   let cached = '';
   try { cached = localStorage.getItem('hsn-doc-1:' + e[1]) || ''; } catch { /* ignore */ }
+  if (cached && aiOutputBad(cached)) { cached = ''; try { localStorage.removeItem('hsn-doc-1:' + e[1]); } catch { /* ignore */ } }
   const body = V.doc || cached;
   let inner;
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI plain-words reading of the document and certificate list below - the list itself, not this summary, is what a shipment follows.</p>';
