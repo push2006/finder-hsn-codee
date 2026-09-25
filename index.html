@@ -63767,6 +63767,15 @@ function geoImpactHtml(e) {
   let addN = 0;
   for (const m of ADD_MEASURES) { const lines = m[0].split(','); for (const h of lines) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { addN++; break; } } }
   if (addN) items.push('<strong>' + addN + ' anti-dumping ' + (addN === 1 ? 'measure applies' : 'measures apply') + '</strong> to imports of this line into India (details in the anti-dumping section).');
+  // unit-value price move
+  {
+    let u24 = null, u25 = null;
+    for (const r of (tr || [])) { if (r[0] === 2024 && r[4] > 0) u24 = r[2] / r[4]; if (r[0] === 2025 && r[4] > 0) u25 = r[2] / r[4]; }
+    if (u24 !== null && u25 !== null) {
+      const chg = (u25 - u24) / u24 * 100;
+      if (Math.abs(chg) >= 30) items.push('India\'s export price for this line moved <strong>' + (chg > 0 ? '+' : '') + chg.toFixed(0) + '%</strong> in a year ($' + u24.toFixed(2) + '/kg in 2024 &rarr; $' + u25.toFixed(2) + '/kg in 2025).');
+    }
+  }
   // recent FTA duty cut
   let cut = 0;
   for (const k in FTA_AU) { if (FTA_AU[k][1] === 'B5' && k.slice(0, 6) === c6) { cut = 1; break; } }
@@ -64416,20 +64425,10 @@ function searchIdleHtml() {
   s += chipRowHtml('Recently viewed', S.recent);
   if (!S.clientMode) s += '<div class="chip-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="client-on">Present to client - hide my notes and settings</button></p></div>';
   s += '<div class="about-box">' +
-    '<p>One smart box does both jobs: type a product name and the list filters live, type digits and it becomes a code search, or tap Suggest best codes for an AI pick of the most likely code. Tap a result for the full detail page: what the code covers, how it links worldwide (international 6-digit to national to domestic tariff lines), and a PDF download.</p>' +
+    '<p>One smart box does both jobs: type a product name and the list filters live, type digits and it becomes a code search, or tap Suggest best codes for an AI pick of the most likely code. Tap a result for the full code page: markets, competitors, sanctions, geopolitics, duty cuts, companies, documents and a PDF report - every feature is connected to that code.</p>' +
     '<p><button class="file-button is-compact" data-variant="secondary" id="browse-toggle">' + (V.browse ? 'Hide chapter browser' : 'Browse all 98 chapters') + '</button></p>' +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="boom-toggle">' + (V.boom ? 'Hide booming products' : 'Booming products 2025 - India\'s fastest-growing trade lines') + '</button></p>' +
-    (V.boom ? boomPanelHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="tsum-toggle">' + (V.tsum ? 'Hide India trade summary' : 'India trade ' + TRADE_YEAR + ' in words - top imports &amp; exports') + '</button></p>' +
     (V.tsum ? tsumPanelHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="mf-toggle">' + (V.mf ? 'Hide market finder' : 'Market finder - top importing countries for any product') + '</button></p>' +
-    (V.mf ? mfPanelHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="sgap-toggle">' + (V.sgap ? 'Hide sanction gap finder' : 'Sanction gap finder - where sanctions reshape trade') + '</button></p>' +
-    (V.sgap ? sgapHomeHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="tdrop-toggle">' + (V.tdrop ? 'Hide tariff drops' : 'Tariff drops - FTA duty cuts you can claim now') + '</button></p>' +
-    (V.tdrop ? tdropHomeHtml() : '') +
-    '<p><button class="file-button is-compact" data-variant="secondary" id="pw-toggle">' + (V.pw ? 'Hide price watch' : 'Price watch - biggest India export unit-value moves 2024-2025') + '</button></p>' +
-    (V.pw ? priceWatchHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="cp-toggle">' + (V.cp ? 'Hide country profile' : 'Country profile - what any country buys and sells most') + '</button></p>' +
     (V.cp ? countryProfileHtml() : '') +
     '<p><button class="file-button is-compact" data-variant="secondary" id="ships-toggle">' + (V.ships ? 'Hide live ships' : 'Live ships near India ports - real-time vessel positions') + '</button></p>' +
