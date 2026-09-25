@@ -2949,8 +2949,8 @@ async function plainWordsRun(e) {
     e[5] ? 'Duty/rate line as listed: ' + e[5] : '',
   ].filter(Boolean).join('\n');
   try {
-    const t = await aiPickText('Explain this customs tariff line in plain words for a small trader who has never read a tariff schedule.\n' + facts + '\nRules: use only the information above; never invent products, numbers, rates or rules; 3 to 5 short sentences: what products this covers, two or three everyday examples consistent with the wording, and one example of what sits outside it if the wording makes that clear; simple words, no legal phrasing; do not restate the code number; end with exactly: Verify the exact wording with customs before shipping.', { temperature: 0.3, maxTokens: 500 });
-    V.plain = String(t || '').trim();
+    const t = await aiPickText('Explain this customs tariff line in plain words for a small trader who has never read a tariff schedule.\n' + facts + '\nRules: use only the information above; never invent products, numbers, rates or rules; 3 to 5 short sentences: what products this covers, two or three everyday examples consistent with the wording, and one example of what sits outside it if the wording makes that clear; simple words, no legal phrasing; plain text only - no markdown, no asterisks, no bullet symbols; do not restate the code number; end with exactly: Verify the exact wording with customs before shipping.', { temperature: 0.3, maxTokens: 700 });
+    V.plain = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
     try { localStorage.setItem('hsn-plain-' + e[0] + ':' + e[1], V.plain); } catch { /* ignore */ }
   } catch (err) {
     V.plainErr = err.message || 'AI failed - try again.';
