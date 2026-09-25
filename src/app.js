@@ -2479,6 +2479,41 @@ function priceWatchHtml() {
 }
 
 // Tariff drop finder: FTA lines whose duty fell recently (official schedules), ranked by India's exports.
+// Geopolitics & policy impact: one card combining the baked sanctions, anti-dumping, FTA-drop and trend signals for this code.
+function geoImpactHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const items = [];
+  // 5-year trade swing
+  const tr = TRADE_TREND[c6];
+  if (tr && tr.length >= 2) {
+    const f = tr[0], l = tr[tr.length - 1];
+    if (f[2] > 0 && l[2] > 0) {
+      const chg = (l[2] - f[2]) / f[2] * 100;
+      if (Math.abs(chg) >= 40) items.push('India\'s exports of this line ' + (chg > 0 ? 'grew <strong>+' + chg.toFixed(0) + '%</strong>' : 'fell <strong>' + chg.toFixed(0) + '%</strong>') + ' between ' + f[0] + ' and ' + l[0] + ' (' + esc(fmtUsd(f[2])) + ' &rarr; ' + esc(fmtUsd(l[2])) + ') - a swing this size usually tracks policy, sanctions or demand shocks.');
+    }
+  }
+  // sanctions exposure
+  const g = SANCGAP[c6];
+  if (g) {
+    if ((g.sx || []).length) items.push('<strong>' + (g.sx || []).length + ' sanctioned ' + ((g.sx || []).length === 1 ? 'country supplies' : 'countries supply') + '</strong> this line - supply can shift if sanctions tighten (see the supply-gap section above).');
+    if ((g.dm || []).length) items.push('<strong>' + (g.dm || []).length + ' sanctioned ' + ((g.dm || []).length === 1 ? 'market imports' : 'markets import') + '</strong> this line - demand exists but payment, shipping and insurance routes are restricted.');
+  }
+  // anti-dumping
+  const digs = e[1].replace(/\D/g, '');
+  let addN = 0;
+  for (const m of ADD_MEASURES) { const lines = m[0].split(','); for (const h of lines) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { addN++; break; } } }
+  if (addN) items.push('<strong>' + addN + ' anti-dumping ' + (addN === 1 ? 'measure applies' : 'measures apply') + '</strong> to imports of this line into India (details in the anti-dumping section).');
+  // recent FTA duty cut
+  let cut = 0;
+  for (const k in FTA_AU) { if (FTA_AU[k][1] === 'B5' && k.slice(0, 6) === c6) { cut = 1; break; } }
+  if (!cut) { for (const k in FTA_UAE) { const v = FTA_UAE[k]; if (k.slice(0, 6) === c6 && v[1] !== 'EX' && v[1] !== 'PG' && v[1] !== 'SG') { const p = ftaPct(v[1 + FTA_UAE_YEAR_NOW]), n = ftaPct(v[2 + FTA_UAE_YEAR_NOW]); if (p !== null && n !== null && n < p) { cut = 1; break; } } } }
+  if (cut) items.push('An <strong>FTA duty cut took effect recently</strong> for this line (see the FTA duty advantages section) - claimable now with a certificate of origin.');
+  if (!items.length) return '';
+  return '<div class="detail-sec mf-panel"><h3>Geopolitics &amp; policy impact</h3><ul class="geo-list">' +
+    items.map((i) => '<li>' + i + '</li>').join('') + '</ul>' +
+    '<p class="muted">Signals computed from the baked official datasets on this page (Comtrade trade trend, sanctions snapshot, DGTR anti-dumping measures, FTA schedules). Data only, no advice.</p></div>';
+}
+
 function tdropRows() {
   if (V.tdropRows) return V.tdropRows;
   const drops = [];
@@ -2592,6 +2627,7 @@ function detailHtml(idx) {
   s += marketFinderHtml(e);
   s += compShareHtml(e);
   s += sgapDetailHtml(e);
+  s += geoImpactHtml(e);
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
