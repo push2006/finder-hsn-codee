@@ -64029,6 +64029,68 @@ function intelHtml(e) {
     '<p class="muted">Auto-gathered from the official datasets baked into this file - each row expands in a section below. Port-level detail for this code is not baked yet.</p></div>';
 }
 
+
+// ---- Trade risk: plain status table per code (facts only, sourced) ----
+function tradeRiskHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const digs = e[1].replace(/\D/g, '');
+  const rows = [];
+  if (e[0] === 1) {
+    const sc = SCOMET[e[1]];
+    if (sc) rows.push(['Export control (India)', '<strong>SCOMET-listed</strong>, entry ' + esc(sc[0]) + (sc[1] ? ' (' + esc(sc[1]) + ')' : '') + ' - DGFT authorisation needed to export.']);
+    else {
+      const kids = scometKids(e[1]);
+      if (kids.length) rows.push(['Export control (India)', kids.length + ' SCOMET-controlled line' + (kids.length > 1 ? 's' : '') + ' under this code - authorisation needed for those items.']);
+      else rows.push(['Export control (India)', 'Not SCOMET-listed in the baked DGFT Appendix-3 mapping. Most of the SCOMET list is description-based - this does not clear the item.']);
+    }
+  }
+  let addN = 0, onN = 0;
+  for (const m of ADD_MEASURES) { for (const h of m[0].split(',')) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { addN++; break; } } }
+  for (const o of ADD_ONGOING) { for (const h of o[0].split(',')) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { onN++; break; } } }
+  if (addN || onN) rows.push(['Anti-dumping (into India)', (addN ? '<strong>' + addN + ' measure' + (addN > 1 ? 's' : '') + ' in force</strong>' : 'no measure in force') + (onN ? ' + ' + onN + ' ongoing investigation' + (onN > 1 ? 's' : '') + ' (DGTR)' : '') + ' - covered origins pay extra duty.']);
+  const g = SANCGAP[c6];
+  if (g && ((g.sx || []).length || (g.dm || []).length)) {
+    const names = (a) => a.slice(0, 3).map((r) => esc(String(r[0]).replace(/\*$/, ''))).join(', ') + (a.length > 3 ? ' +' + (a.length - 3) : '');
+    rows.push(['Sanctions exposure', ((g.sx || []).length ? g.sx.length + ' sanctioned ' + (g.sx.length === 1 ? 'supplier' : 'suppliers') + ' (' + names(g.sx) + ')' : 'no sanctioned supplier') + '; ' + ((g.dm || []).length ? g.dm.length + ' sanctioned ' + (g.dm.length === 1 ? 'market' : 'markets') + ' (' + names(g.dm) + ')' : 'no sanctioned market') + '.']);
+  }
+  const tr = TRADE_TREND[c6];
+  if (tr) {
+    const yrs = tr.filter((r) => r[1] || r[2]);
+    if (yrs.length >= 2) {
+      const f = yrs[0], l = yrs[yrs.length - 1];
+      const chg = (a, b) => (a > 0 && b > 0) ? Math.round((b / a - 1) * 100) : null;
+      const parts = [];
+      const xc = chg(f[2], l[2]), mc = chg(f[1], l[1]);
+      if (xc !== null && Math.abs(xc) >= 40) parts.push('exports ' + (xc > 0 ? '+' : '') + xc + '%');
+      if (mc !== null && Math.abs(mc) >= 40) parts.push('imports ' + (mc > 0 ? '+' : '') + mc + '%');
+      if (parts.length) rows.push(['Trade swing ' + f[0] + '-' + l[0], '<strong>' + parts.join(', ') + '</strong> - a shift this size usually tracks a policy, price or supply shock; check the trend section.']);
+    }
+  }
+  if (rows.length < 2) return '';
+  rows.push(['Tariff retaliation', 'No official per-code retaliation dataset is baked - verify this line in the destination\'s current tariff schedule before quoting.']);
+  rows.push(['Route risk', 'No per-code route dataset is baked - see the ports and shipping sections for the lanes you use.']);
+  return '<div class="detail-sec trade-risk"><h3>Trade risk - status at a glance</h3>' +
+    '<dl class="detail-facts">' + rows.map((r) => '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>').join('') + '</dl>' +
+    '<p class="muted">Plain status from the baked official datasets (DGFT SCOMET mapping, CBIC/DGTR anti-dumping, UN Comtrade partners and trends, sanctions lists). Screening aid, not advice - verify before shipping.</p></div>';
+}
+// ---- Market data: where India sells this line, in numbers ----
+function marketDataHtml(e) {
+  const c6 = e[1].slice(0, 6);
+  const tp = TRADE_PARTNERS[c6];
+  if (!tp || !tp.x.length) return '';
+  const t6 = TRADE6[c6];
+  const mi = MARKET_IMPORTERS[c6] || [];
+  const rank = {};
+  mi.forEach((r, i) => { rank[r[0]] = i + 1; });
+  const rows = tp.x.slice(0, 5).map((p) => {
+    const share = t6 && t6[1] > 0 ? Math.round(p[1] / t6[1] * 100) : null;
+    return '<tr><td>' + esc(p[0]) + '</td><td>' + fmtUsd(p[1]) + '</td><td>' + (share !== null ? share + '%' : '-') + '</td><td>' + (rank[p[0]] ? '#' + rank[p[0]] + ' worldwide' : 'outside top 8') + '</td></tr>';
+  }).join('');
+  return '<div class="detail-sec market-data"><h3>Market data - where India sells this line</h3>' +
+    '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Destination</th><th>India exports ' + TRADE_YEAR + '</th><th>Share</th><th>As a world buyer</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<p class="muted">UN Comtrade ' + TRADE_YEAR + ' partner data and world top-buyer ranking, baked. Certificates and document needs per market: see the export checklist section. Export incentive for this line (RoDTEP): see the product intel card above.</p></div>';
+}
+
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -64076,11 +64138,13 @@ function detailHtml(idx) {
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
   s += ccyImpactHtml(e[1].slice(0, 6));
   s += tradeCardHtml(e[4], e[1]);
+  s += marketDataHtml(e);
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
   s += addHtml(e[1], e[2]);
   s += boomBadgeHtml(e);
   s += riskHtml(e);
+  s += tradeRiskHtml(e);
   s += rodtepHtml(e);
   s += sancHtml();
   s += docsHtml(e[4]);
