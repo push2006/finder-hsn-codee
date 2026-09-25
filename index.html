@@ -64203,7 +64203,7 @@ async function briefRun(e) {
     if (yrs.length >= 2) {
       const a = yrs[0], b = yrs[yrs.length - 1];
       if ((a[2] || 0) > 0 || (b[2] || 0) > 0) facts.push('India exports of this line moved from ' + fmtUsd(a[2] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[2] || 0) + ' (' + b[0] + ').');
-      if ((a[1] || 0) > 0 || (b[1] || 0) > 0) facts.push('India imports of this line moved from ' + fmtUsd(a[1] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[1] || 0) + ' (' + b[0] + ').');
+
     }
   }
   const ss = TRADE_SEASON[c6];
@@ -64228,7 +64228,7 @@ async function briefRun(e) {
   const g = SANCGAP[c6];
   if (g && ((g.sx || []).length || (g.dm || []).length)) facts.push('Sanctions exposure: ' + (g.sx || []).length + ' sanctioned supplier(s), ' + (g.dm || []).length + ' sanctioned market(s).');
   try {
-    const t = await aiPickText('Write a short trade brief on this customs code for a small Indian trader.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent products, countries, numbers, rates or rules; 4 to 6 short sentences covering the duty position, where India sells or buys this line, timing if given, and anything to watch (controls, duties, sanctions) if listed; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; do not restate the code number; end with exactly: Verify the current figures before you ship.', { temperature: 0.3, maxTokens: 700 });
+    const t = await aiPickText('Write a short trade brief on this customs code for a small Indian trader.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent products, countries, numbers, rates or rules; keep each number with the exact fact it came from (exports vs imports, supplier vs market); 4 to 6 short sentences covering the duty position, where India sells or buys this line, timing if given, and anything to watch (controls, duties, sanctions) if listed; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; do not restate the code number; end with exactly: Verify the current figures before you ship.', { temperature: 0.3, maxTokens: 700 });
     V.brief = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
     try { localStorage.setItem('hsn-brief-' + e[0] + ':' + e[1], V.brief); } catch { /* ignore */ }
   } catch (err) {
