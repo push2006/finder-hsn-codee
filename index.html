@@ -64169,6 +64169,80 @@ async function plainWordsRun(e) {
     if (b) b.addEventListener('click', () => plainWordsRun(e));
   }
 }
+function briefHtml(e) {
+  let cached = '';
+  try { cached = localStorage.getItem('hsn-brief-' + e[0] + ':' + e[1]) || ''; } catch { /* ignore */ }
+  const body = V.brief || cached;
+  let inner;
+  if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI reading of the official figures baked into this file - the datasets below are the record, this summary is not.</p>';
+  else if (V.briefErr) inner = '<p class="muted">' + esc(V.briefErr) + '</p>';
+  else inner = '<p class="muted">A short AI brief on this code for a small trader: duty, best markets, timing, and what to watch - written only from the official figures baked into this file. One tap, free.</p>';
+  return '<div class="detail-sec no-print" id="brief-card"><h3>Trade brief - this code in a paragraph</h3><div id="brief-slot">' + inner + '</div>' +
+    '<p><button class="file-button is-compact" id="brief-go"' + (V.briefBusy ? ' disabled' : '') + '>' + (V.briefBusy ? 'Writing...' : (body ? 'Rewrite trade brief' : 'Trade brief')) + '</button></p></div>';
+}
+async function briefRun(e) {
+  if (V.briefBusy) return;
+  V.briefBusy = true; V.briefErr = null;
+  const slot0 = el('brief-slot');
+  if (slot0) slot0.innerHTML = '<p class="muted">Writing trade brief...</p>';
+  const b0 = el('brief-go'); if (b0) { b0.disabled = true; b0.textContent = 'Writing...'; }
+  const c6 = e[1].slice(0, 6);
+  const facts = ['System: ' + SYS[e[0]].name, 'Code: ' + e[1], 'Official wording: ' + pretty(e[2])];
+  if (e[0] === 1) {
+    const g = gstFor(e[1]);
+    if (e[5] && e[5].indexOf('BCD ') === 0) facts.push('India import duty (statutory): ' + e[5].slice(4).trim() + (g ? ', plus IGST ' + g[0] : ''));
+    const d = RODTEP_DTA[e[1]];
+    if (d) facts.push('Export incentive: RoDTEP ' + d[0] + ' of FOB' + (d[1] ? ', cap Rs ' + d[1] + ' per ' + (d[2] || 'unit') : ''));
+  } else if (e[5]) facts.push('Listed duty/rate: ' + e[5]);
+  const tp = TRADE_PARTNERS[c6];
+  if (tp && tp.x.length) facts.push('India exports to top markets (' + TRADE_YEAR + '): ' + tp.x.slice(0, 3).map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', '));
+  if (tp && tp.m.length) facts.push('India imports mainly from (' + TRADE_YEAR + '): ' + tp.m.slice(0, 3).map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', '));
+  const tr = TRADE_TREND[c6];
+  if (tr) {
+    const yrs = tr.filter((r) => r[1] || r[2]);
+    if (yrs.length >= 2) {
+      const a = yrs[0], b = yrs[yrs.length - 1];
+      facts.push('India exports moved from ' + fmtUsd(a[1] || 0) + ' (' + a[0] + ') to ' + fmtUsd(b[1] || 0) + ' (' + b[0] + ').');
+    }
+  }
+  const ss = TRADE_SEASON[c6];
+  if (ss) {
+    const tot = ss[0].map((v, i) => (v || 0) + (ss[1][i] || 0));
+    const sumAll = tot.reduce((x, y) => x + y, 0);
+    if (sumAll) {
+      let pk = 0, tr2 = 0;
+      for (let i = 1; i < 12; i++) { if (tot[i] > tot[pk]) pk = i; if (tot[i] < tot[tr2]) tr2 = i; }
+      facts.push('Trade peaks in ' + MONTH_NAMES[pk] + ' and dips in ' + MONTH_NAMES[tr2] + ' (average across recent years).');
+    }
+  }
+  const digs = e[1].replace(/\D/g, '');
+  let addN = 0, onN = 0;
+  for (const m of ADD_MEASURES) { for (const h of m[0].split(',')) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { addN++; break; } } }
+  for (const o of ADD_ONGOING) { for (const h of o[0].split(',')) { if (digs === h || (digs.length >= 6 && h.slice(0, 6) === digs.slice(0, 6))) { onN++; break; } } }
+  if (addN || onN) facts.push('Anti-dumping into India: ' + addN + ' measure(s) in force' + (onN ? ', ' + onN + ' ongoing investigation(s)' : '') + ' on covered origins.');
+  if (e[0] === 1) {
+    if (SCOMET[e[1]]) facts.push('Export control: SCOMET-listed, DGFT authorisation needed to export.');
+    else if (scometKids(e[1]).length) facts.push('Export control: some lines under this code are SCOMET-controlled.');
+  }
+  const g = SANCGAP[c6];
+  if (g && ((g.sx || []).length || (g.dm || []).length)) facts.push('Sanctions exposure: ' + (g.sx || []).length + ' sanctioned supplier(s), ' + (g.dm || []).length + ' sanctioned market(s).');
+  try {
+    const t = await aiPickText('Write a short trade brief on this customs code for a small Indian trader.\n' + facts.join('\n') + '\nRules: use ONLY the facts above - never invent products, countries, numbers, rates or rules; 4 to 6 short sentences covering the duty position, where India sells or buys this line, timing if given, and anything to watch (controls, duties, sanctions) if listed; simple words, no jargon; plain text only - no markdown, no asterisks, no bullet symbols; do not restate the code number; end with exactly: Verify the current figures before you ship.', { temperature: 0.3, maxTokens: 700 });
+    V.brief = String(t || '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/^[-*] /gm, '').trim();
+    try { localStorage.setItem('hsn-brief-' + e[0] + ':' + e[1], V.brief); } catch { /* ignore */ }
+  } catch (err) {
+    V.briefErr = err.message || 'AI failed - try again.';
+  }
+  V.briefBusy = false;
+  const old = el('brief-card');
+  if (old && S.sel !== null) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = briefHtml(e);
+    old.replaceWith(wrap.firstChild);
+    const b = el('brief-go');
+    if (b) b.addEventListener('click', () => briefRun(e));
+  }
+}
 function detailHtml(idx) {
   const db = S.db;
   const e = db.entries[idx];
@@ -64200,6 +64274,7 @@ function detailHtml(idx) {
   s += hs22Html(e);
   s += plainWordsHtml(e);
   s += intelHtml(e);
+  s += briefHtml(e);
   if (!S.clientMode) {
     s += '<div class="detail-sec no-print note-sec"><h3>Your note</h3>' +
       '<textarea class="note-box" id="d-note" rows="3" placeholder="Your private note for this code - client name, shipment, price, anything. Saved on this device only.">' + esc(note) + '</textarea></div>';
@@ -64292,6 +64367,8 @@ function paintDetail() {
   if (noteT) noteT.addEventListener('input', () => { setNote(key, noteT.value); });
   const plB = el('plain-go');
   if (plB) plB.addEventListener('click', () => plainWordsRun(e));
+  const brB = el('brief-go');
+  if (brB) brB.addEventListener('click', () => briefRun(db.entries[S.sel]));
   if (el('lc-goods')) {
     const lcUpd = () => paintLanded(e);
     ['lc-goods', 'lc-freight', 'lc-ins', 'lc-bcd'].forEach((id) => { const x = el(id); if (x) x.addEventListener('input', lcUpd); });
@@ -65110,7 +65187,7 @@ function setNote(k, v) {
 }
 function openEntry(i) {
   S.sel = i; S.cmpA = null; S.cmpB = null; S.showList = false;
-  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false; V.plain = null; V.plainBusy = false; V.plainErr = null;
+  V.dIdx = i; V.needKey = false; V.busy = false; V.briefError = null; V.copied = false; V.settingsOpen = false; V.plain = null; V.plainBusy = false; V.plainErr = null; V.brief = null; V.briefBusy = false; V.briefErr = null;
   const e = S.db.entries[i];
   const k = e[0] + ':' + e[1];
   try { history.replaceState(null, '', '#code=' + k); } catch { /* ignore */ }
