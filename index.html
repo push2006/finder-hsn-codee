@@ -63092,7 +63092,8 @@ function tplDutyRows(db, e) {
 function comtradeFacts(e) {
   const c6 = String(e[1]).slice(0, 6);
   const t6 = TRADE6[c6], tp = TRADE_PARTNERS[c6];
-  if (!t6 && !tp) return '';
+  const mi = MARKET_IMPORTERS[c6], mx = MARKET_EXPORTERS[c6], sg = SANCGAP[c6];
+  if (!t6 && !tp && !mi && !mx && !sg) return '';
   let f = 'Verified UN Comtrade figures, calendar ' + TRADE_PARTNERS_YEAR + ', HS ' + c6 + ', reporter India, USD: ';
   if (t6) f += 'imports ' + fmtUsd(t6[0]) + ' (CIF), exports ' + fmtUsd(t6[1]) + '. ';
   if (tp && tp.x.length) f += 'Top export destinations: ' + tp.x.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
@@ -63105,6 +63106,24 @@ function comtradeFacts(e) {
   if (tr) {
     const yrs = tr.filter((r) => r[1] || r[2]);
     if (yrs.length) f += 'India trade trend, USD (year: imports / exports, then net kg in / out where reported): ' + yrs.map((r) => r[0] + ': ' + fmtUsd(r[1]) + ' / ' + fmtUsd(r[2]) + ((r[3] || r[4]) ? ' (' + fmtQty(r[3], 'kg') + ' / ' + fmtQty(r[4], 'kg') + ')' : '')).join(', ') + '. ';
+  }
+  if (mi && mi.length) f += 'World imports of this line total ' + fmtUsd(MARKET_WORLD[c6] || 0) + '; top importing countries (all reporters, CIF): ' + mi.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  if (mx && mx.length) f += 'World exports of this line total ' + fmtUsd(MARKET_WORLD_X[c6] || 0) + '; top exporting countries (all reporters, FOB): ' + mx.map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  if (sg) {
+    if ((sg.sx || []).length) f += 'Sanctioned countries supplying this line (supply at sanctions risk): ' + (sg.sx || []).map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '; alternative suppliers: ' + ((sg.alt || []).map((p) => p[0]).join(', ') || 'none identified') + '. ';
+    if ((sg.dm || []).length) f += 'Sanctioned markets importing this line: ' + (sg.dm || []).map((p) => p[0] + ' ' + fmtUsd(p[1])).join(', ') + '. ';
+  }
+  {
+    const tr2 = TRADE_TREND[c6];
+    if (tr2) {
+      let u24 = null, u25 = null;
+      for (const r of tr2) { if (r[0] === 2024 && r[4] > 0) u24 = r[2] / r[4]; if (r[0] === 2025 && r[4] > 0) u25 = r[2] / r[4]; }
+      if (u24 !== null && u25 !== null) f += 'India export unit value moved from $' + u24.toFixed(2) + '/kg (2024) to $' + u25.toFixed(2) + '/kg (2025), ' + (u25 >= u24 ? '+' : '') + (((u25 - u24) / u24) * 100).toFixed(0) + '%. ';
+    }
+    let cutNote = '';
+    for (const k in FTA_AU) { if (FTA_AU[k][1] === 'B5' && k.slice(0, 6) === c6) { cutNote = 'Australia-India ECTA lines under this heading went duty-free 1 Jan 2026. '; break; } }
+    for (const k in FTA_UAE) { const v = FTA_UAE[k]; if (k.slice(0, 6) === c6 && v[1] !== 'EX' && v[1] !== 'PG' && v[1] !== 'SG') { const p = ftaPct(v[1 + FTA_UAE_YEAR_NOW]), n = ftaPct(v[2 + FTA_UAE_YEAR_NOW]); if (p !== null && n !== null && n < p) { cutNote += 'India-UAE CEPA duty on line ' + k + ' stepped down from ' + p + '% to ' + n + '% in May 2026 (agreement year 5). '; } } }
+    if (cutNote) f += 'Recent FTA duty cuts claimable now: ' + cutNote;
   }
   return f + 'Use these exact figures and countries wherever trade values, volumes, trends or top trading partners are discussed; never contradict them or invent different ones.\n';
 }
