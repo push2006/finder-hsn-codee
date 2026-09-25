@@ -61901,6 +61901,7 @@ const V = { // per-view ephemeral state
   apiKey: (() => { try { return localStorage.getItem(API_KEY_STORE) || ''; } catch { return ''; } })(),
   apiProvider: (() => { try { return localStorage.getItem(API_PROVIDER_STORE) || ''; } catch { return ''; } })(),
   ccy: {}, // sys -> info | 'err'
+  ccyImpact: null, // USD->INR series for the currency-impact card | 'err'
   ships: false, shipsPort: 'ALL', shipsData: null, shipsBusy: false, shipsErr: null, shipsAt: 0,
   tcur: false, tcurData: null, tcurBusy: false, tcurErr: false,
 };
@@ -62544,6 +62545,81 @@ function currencySlotHtml(sys) {
     '<p>1 USD = <strong>' + info.cur.toFixed(2) + ' ' + ccy + '</strong> on ' + esc(info.date) + '. Last 30 days: ' + (p30 >= 0 ? '+' : '') + p30.toFixed(1) + '%. Last year: ' + (p365 >= 0 ? '+' : '') + p365.toFixed(1) + '%. The ' + ccy + ' is ' + trend + ' against the US dollar' + (trend === 'weakening' ? ' - goods priced in USD are getting costlier in ' + ccy : trend === 'strengthening' ? ' - goods priced in USD are getting cheaper in ' + ccy : '') + '.</p>' +
     '<p class="muted">Live ECB reference rates via the free Frankfurter API, fetched in your browser when this page opens - not baked into the dataset. Rates are indicative, not settlement rates.</p></div>';
 }
+
+// ---- Currency impact: INR vs USD move applied to this code's trade direction ----
+// Live ECB reference rates (Frankfurter) + baked trade values. Arithmetic only, never a forecast.
+function ccyImpactHtml(c6) {
+  const t6 = c6 ? TRADE6[c6] : null;
+  if (!t6 || (!t6[0] && !t6[1])) return '';
+  const info = V.ccyImpact;
+  if (!info) return '<div class="detail-sec ccy-impact" id="ccy-impact"><h3>Currency impact - rupee vs dollar</h3><p class="muted">Loading live rates...</p></div>';
+  if (info === 'err') return '';
+  const pct = (a, b) => ((a - b) / b) * 100;
+  const p365 = pct(info.cur, info.y);
+  const p30 = pct(info.cur, info.m);
+  const move = Math.abs(p365) < 0.5 ? 'flat' : p365 > 0 ? 'weak' : 'strong';
+  const pTxt = (p) => (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+  let lead;
+  if (move === 'flat') lead = '1 USD = <strong>\u20B9' + info.cur.toFixed(2) + '</strong> on ' + esc(info.date) + ' - roughly flat against a year ago (' + pTxt(p365) + ').';
+  else lead = 'A year ago 1 USD = \u20B9' + info.y.toFixed(2) + '; on ' + esc(info.date) + ' it is <strong>\u20B9' + info.cur.toFixed(2) + '</strong> - the rupee ' + (move === 'weak' ? 'weakened <strong>' + pTxt(p365) + '</strong>' : 'strengthened <strong>' + pTxt(Math.abs(p365)) + '</strong>') + ' in 12 months (30 days: ' + pTxt(p30) + ').';
+  const x = t6[1], m = t6[0];
+  const ap = Math.abs(p365).toFixed(1);
+  let verdict = '';
+  if (move !== 'flat') {
+    const weak = move === 'weak';
+    if (x > m * 3) verdict = 'India is a strong net exporter of this product (exports ' + fmtUsd(x) + ' vs imports ' + fmtUsd(m) + ' in ' + TRADE_YEAR + '). ' + (weak
+      ? 'At the same dollar price, the weaker rupee means about <strong>' + ap + '% more rupees</strong> on unhedged dollar invoices - and Indian supply looks about ' + ap + '% cheaper to foreign buyers. A stronger rupee reverses both.'
+      : 'At the same dollar price, the stronger rupee means about <strong>' + ap + '% fewer rupees</strong> on unhedged dollar invoices - and Indian supply looks about ' + ap + '% costlier to foreign buyers. A weaker rupee reverses both.');
+    else if (m > x * 3) verdict = 'India relies heavily on imports here (imports ' + fmtUsd(m) + ' vs exports ' + fmtUsd(x) + ' in ' + TRADE_YEAR + '). ' + (weak
+      ? 'The weaker rupee raises the rupee cost of unhedged dollar purchases by about <strong>' + ap + '%</strong> before duty and GST.'
+      : 'The stronger rupee lowers the rupee cost of unhedged dollar purchases by about <strong>' + ap + '%</strong> before duty and GST.');
+    else verdict = 'India trades this product both ways (imports ' + fmtUsd(m) + ', exports ' + fmtUsd(x) + ' in ' + TRADE_YEAR + '). ' + (weak
+      ? 'The weaker rupee adds about <strong>' + ap + '%</strong> to export realization in rupees and the same to import costs, before duty and GST.'
+      : 'The stronger rupee trims about <strong>' + ap + '%</strong> from export realization in rupees and the same from import costs, before duty and GST.');
+  }
+  let ex = '';
+  if (move !== 'flat') {
+    const big = Math.max(x, m);
+    if (big > 0) {
+      const leg = x >= m ? 'exports' : 'imports';
+      const fcr = (v) => '\u20B9' + Math.round(v).toLocaleString('en-IN') + ' crore';
+      const cr = (usd, rate) => (usd * rate / 1e7);
+      const then = cr(big, info.y), nowV = cr(big, info.cur);
+      const diff = nowV - then;
+      ex = 'Worked example: ' + TRADE_YEAR + ' ' + leg + ' of ' + fmtUsd(big) + ' converted to ' + fcr(then) + ' a year ago; the same dollar value converts to ' + fcr(nowV) + ' today - ' + fcr(Math.abs(diff)) + (diff >= 0 ? ' more' : ' less') + ' without one extra kilo ' + (x >= m ? 'sold' : 'bought') + '.';
+    }
+  }
+  return '<div class="detail-sec ccy-impact" id="ccy-impact"><h3>Currency impact - rupee vs dollar</h3>' +
+    '<p>' + lead + '</p>' +
+    (verdict ? '<p>' + verdict + '</p>' : '') +
+    (ex ? '<p>' + ex + '</p>' : '') +
+    '<p class="muted">Plain arithmetic on ECB reference rates (free Frankfurter API, fetched live in your browser - not baked) and baked ' + TRADE_YEAR + ' UN Comtrade values. Not a forecast; your bank settlement rate will differ.</p></div>';
+}
+function fetchCcyImpact(onDone) {
+  if (V.ccyImpact) { onDone(); return; }
+  if (typeof fetch !== 'function') { V.ccyImpact = 'err'; onDone(); return; }
+  const now = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const start = new Date(now.getTime() - 400 * 864e5);
+  fetch('https://api.frankfurter.dev/v1/' + fmt(start) + '..' + fmt(now) + '?from=USD&to=INR')
+    .then((r) => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then((j) => {
+      const rates = j.rates || {};
+      const days = Object.keys(rates).sort();
+      if (!days.length) { V.ccyImpact = 'err'; onDone(); return; }
+      const last = days[days.length - 1];
+      const pick = (ago) => {
+        const tg = fmt(new Date(now.getTime() - ago * 864e5));
+        let best = days[0];
+        for (const d of days) { if (d <= tg) best = d; else break; }
+        return rates[best].INR;
+      };
+      V.ccyImpact = { cur: rates[last].INR, m: pick(30), y: pick(365), date: last };
+      onDone();
+    })
+    .catch(() => { V.ccyImpact = 'err'; onDone(); });
+}
+
 function fetchCurrency(sys, onDone) {
   const ccy = SYS_CCY[sys];
   if (!ccy || ccy === 'USD' || ccy === 'AED' || CCY_NO_ECB[ccy]) return;
@@ -63961,6 +64037,7 @@ function detailHtml(idx) {
   s += landedCostHtml(e);
   s += currencySlotHtml(e[0]);
   s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
+  s += ccyImpactHtml(e[1].slice(0, 6));
   s += tradeCardHtml(e[4], e[1]);
   s += ftaHtml(e[1]);
   s += certsHtml(e[4]);
@@ -64100,6 +64177,19 @@ function paintDetail() {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(() => done(true)).catch(() => done(false));
     else done(false);
   });
+  // currency impact card: fill in async
+  if (el('ccy-impact')) {
+    fetchCcyImpact(() => {
+      if (S.sel !== idx) return;
+      const slot = el('ccy-impact');
+      if (!slot) return;
+      const html = ccyImpactHtml(e[1].slice(0, 6));
+      if (!html) { slot.remove(); return; }
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      slot.replaceWith(tmp.firstChild);
+    });
+  }
   // currency card: fill in async
   const ccy = SYS_CCY[e[0]];
   if (ccy && ccy !== 'USD') {
