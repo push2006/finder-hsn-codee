@@ -4,7 +4,9 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = path.join(process.cwd(), 'src');
+const PAKO = fs.readFileSync(path.join(process.cwd(), 'vendor', 'pako-inflate.min.js'), 'utf8');
 const OUT = path.join(process.cwd(), 'index.html');
+const pako = PAKO;
 
 const read = (p) => fs.readFileSync(path.join(SRC, p), 'utf8');
 
@@ -99,6 +101,7 @@ ${css}
 <body>
 <div id="root"></div>
 <script>
+${pako}
 var DATA_B64 = "${dataB64}";
 ${gst}
 ${trade}

@@ -401,10 +401,18 @@ function gstFor(code) {
 
 async function decodeData() {
   const bin = Uint8Array.from(atob(DATA_B64), (c) => c.charCodeAt(0));
-  const ds = new DecompressionStream('gzip');
-  const stream = new Blob([bin]).stream().pipeThrough(ds);
-  const buf = await new Response(stream).arrayBuffer();
-  return JSON.parse(new TextDecoder().decode(buf));
+  // Fast native path (Chrome 80+, Safari 16.4+, Firefox 113+).
+  if (typeof DecompressionStream === 'function') {
+    const ds = new DecompressionStream('gzip');
+    const stream = new Blob([bin]).stream().pipeThrough(ds);
+    const buf = await new Response(stream).arrayBuffer();
+    return JSON.parse(new TextDecoder().decode(buf));
+  }
+  // Fallback for older browsers/WebViews: pako inflate (vendored inline - works offline).
+  if (typeof pako !== 'undefined' && pako.ungzip) {
+    return JSON.parse(new TextDecoder().decode(pako.ungzip(bin)));
+  }
+  throw new Error('This browser is too old to open the data file - please update it or try another browser.');
 }
 
 function loadDb(entries) {
