@@ -3156,9 +3156,9 @@ function detailHtml(idx) {
   const apiKey = V.apiKey;
   let s = '<div class="page-pad detail-view">';
   s += '<div class="no-print back-row">' +
-    '<button class="file-button is-compact" data-variant="secondary" id="d-back">Back to search</button>' +
-    (!S.clientMode ? '<button class="fav-btn" id="d-fav" title="' + (isFav ? 'Remove from favorites' : 'Save to favorites') + '">' + (isFav ? '&#9733; Saved' : '&#9734; Save') + '</button>' : '') +
-    (!S.clientMode ? '<button class="fav-btn" id="d-short" title="' + (shortlisted ? 'Remove from client shortlist' : 'Add to client shortlist') + '">' + (shortlisted ? '&#10003; Shortlisted' : '+ Shortlist') + '</button>' : '') +
+    '<button class="file-button is-compact" data-variant="secondary" id="d-back" aria-label="Back to search">Back to search</button>' +
+    (!S.clientMode ? '<button class="fav-btn" id="d-fav" aria-label="Save to favourites" title="' + (isFav ? 'Remove from favorites' : 'Save to favorites') + '">' + (isFav ? '&#9733; Saved' : '&#9734; Save') + '</button>' : '') +
+    (!S.clientMode ? '<button class="fav-btn" id="d-short" aria-label="Add to compare shortlist" title="' + (shortlisted ? 'Remove from client shortlist' : 'Add to client shortlist') + '">' + (shortlisted ? '&#10003; Shortlisted' : '+ Shortlist') + '</button>' : '') +
     '</div>';
   s += '<div class="detail-head">' + sysTagHtml(e[0]) + '<h1 class="detail-code">' + esc(fmtCode(e[0], e[1])) + '</h1></div>';
   s += '<p class="detail-desc">' + esc(pretty(e[2])) + '</p>';
@@ -3195,7 +3195,7 @@ function detailHtml(idx) {
   // data, or the live fetch failed), the trend card shows instead.
   const ccyImp = ccyImpactHtml(e[1].slice(0, 6));
   s += (ccyImp ? '' : currencySlotHtml(e[0]));
-  s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
+  s += '<div class="detail-sec no-print"><p><button class="file-button is-compact" data-variant="secondary" id="tcur-toggle" aria-label="Toggle currency display">' + (V.tcur ? 'Hide currency trends' : 'Currency trends - INR vs USD, EUR, GBP, AED and 26 more (live)') + '</button></p>' + (V.tcur ? '<div id="tcur-slot"></div>' : '') + '</div>';
   s += ccyImp;
   s += tradeCardHtml(e[4], e[1]);
   s += marketDataHtml(e);
@@ -3255,6 +3255,9 @@ function detailHtml(idx) {
 function paintDetail() {
   const idx = S.sel;
   el('view').innerHTML = detailHtml(idx);
+  // Focus management: land screen-reader/keyboard users on the detail heading.
+  const dh = el('view').querySelector('h2, h1');
+  if (dh) { dh.setAttribute('tabindex', '-1'); dh.focus({ preventScroll: false }); }
   const db = S.db;
   const e = db.entries[idx];
   const key = e[0] + ':' + e[1];
@@ -3450,7 +3453,7 @@ function paintCompare() {
   else right = '<div class="cmp-col"><p class="muted">Pick the second code:</p>' +
     '<input class="cmp-input" id="cmp-q" value="' + esc(V.cmpQ) + '" placeholder="Search any product or code" autocomplete="off">' +
     '<div id="cmp-res"></div></div>';
-  el('view').innerHTML = '<div class="page-pad"><div class="no-print back-row"><button class="file-button is-compact" data-variant="secondary" id="cmp-close">Close compare</button></div>' +
+  el('view').innerHTML = '<div class="page-pad"><div class="no-print back-row"><button class="file-button is-compact" data-variant="secondary" id="cmp-close" aria-label="Close compare">Close compare</button></div>' +
     '<h2 class="cmp-title">Compare codes</h2><div class="cmp-grid">' + cmpColHtml(S.cmpA) + right + '</div>' + (S.cmpB !== null ? cmpVerdictHtml(S.cmpA, S.cmpB) : '') + '</div>';
   bindOpens(el('view'));
   el('cmp-close').addEventListener('click', back);
@@ -4095,7 +4098,7 @@ function paintSearch() {
   el('view').innerHTML = '<div class="page-pad">' +
     '<div id="banner-slot">' + changesBannerHtml() + (S.clientMode ? '<div class="alert-banner no-print"><strong>Client view</strong> - personal notes, favorites and settings are hidden. <button class="file-button is-compact" data-variant="secondary" id="client-off">Exit client view</button></div>' : '') + '</div>' +
     '<div class="search-stick no-print"><div class="search-grid smart-grid">' +
-    '<label class="sfield"><span class="slabel">Product or code</span><input id="q-main" value="' + esc(V.q) + '" placeholder="Type any product or code - e.g. mobile phone, 8517, 85171300" autocomplete="off"></label>' +
+    '<label class="sfield"><span class="slabel">Product or code</span><input id="q-main" role="combobox" aria-expanded="true" aria-controls="res-slot" aria-label="Product or code search" value="' + esc(V.q) + '" placeholder="Type any product or code - e.g. mobile phone, 8517, 85171300" autocomplete="off"></label>' +
     '<div class="sfield smart-btn"><button class="file-button is-compact" id="cls-go"' + (V.clsBusy || !V.q.trim() ? ' disabled' : '') + '>' + (V.clsBusy ? 'Thinking...' : 'Suggest best codes') + '</button></div>' +
     '</div>' +
     '<div class="chip-row no-print" id="sys-chips">' + [{ s: -1, t: 'All' }].concat(SYS.map((x, si) => ({ s: si, t: x.tag }))).map((c) => '<button class="chip' + (V.sysFilter === c.s ? ' on' : '') + '" data-sysf="' + c.s + '">' + c.t + '</button>').join('') + '</div></div>' +
@@ -4110,7 +4113,28 @@ function paintSearch() {
     el('cls-go').disabled = V.clsBusy || !V.q.trim();
     paintResults(); paintIdle(); paintClassify();
   });
-  qm.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') classifyRun(); });
+  qm.addEventListener('keydown', (ev) => {
+    const rows = Array.prototype.slice.call(document.querySelectorAll('#res-slot .result-link'));
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      if (!rows.length) return;
+      ev.preventDefault();
+      let cur = rows.findIndex((r) => r.classList.contains('kbd-active'));
+      cur = ev.key === 'ArrowDown' ? Math.min(cur + 1, rows.length - 1) : Math.max(cur - 1, 0);
+      rows.forEach((r) => r.classList.remove('kbd-active'));
+      rows[cur].classList.add('kbd-active');
+      rows[cur].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (ev.key === 'Enter') {
+      const act = document.querySelector('#res-slot .result-link.kbd-active');
+      if (act) { ev.preventDefault(); act.click(); return; }
+      classifyRun();
+      return;
+    }
+    if (ev.key === 'Escape') {
+      if (V.q) { ev.preventDefault(); qm.value = ''; qm.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+  });
   el('cls-go').addEventListener('click', classifyRun);
   Array.prototype.forEach.call(el('sys-chips').querySelectorAll('[data-sysf]'), (b) => {
     b.addEventListener('click', () => {
@@ -4269,7 +4293,7 @@ function paintResults() {
       const e = S.db.entries[i];
       return '<li><button class="result-link linkbtn-block' + (direct ? ' direct-hit' : '') + '" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span>' + (direct ? ' <span class="muted">exact match</span>' : '') + '</button></li>';
     };
-    s += '<ul class="result-list no-print">' + exact.map((i) => row(i, true)).join('') + shown.map((i) => row(i, false)).join('') + '</ul>';
+    s += '<ul class="result-list no-print" role="listbox" aria-label="Search results" aria-live="polite">' + exact.map((i) => row(i, true)).join('') + shown.map((i) => row(i, false)).join('') + '</ul>';
   } else {
     const noHits = !(V.clsHits && V.clsHits.length) && !(V.clsOffline && V.clsOffline.length);
     s = noHits ? (/[a-z]/i.test(V.q) ? assistHtml(false) + '<p class="muted">No matches. Try fewer words or a shorter code prefix.</p>' : '<p class="muted">No matches. Try fewer words or a shorter code prefix.</p>') : '';
