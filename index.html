@@ -68467,10 +68467,20 @@ function shipsLoad() {
       clearTimeout(to);
       V.shipsBusy = false;
       if (!ok) {
-        V.shipsErr = (j && j.error && /not configured/.test(j.error.message || '')) ? 'setup' : 'down';
+        const setup = j && j.error && /not configured/.test(j.error.message || '');
+        if (!setup && !V.shipsRetried) {
+          V.shipsRetried = true;
+          V.shipsBusy = false; V.shipsErr = 'waking';
+          paintShips();
+          if (shipsTimer) clearTimeout(shipsTimer);
+          if (V.ships) shipsTimer = setTimeout(() => { shipsLoad(); }, 15000);
+          return;
+        }
+        V.shipsErr = setup ? 'setup' : 'down';
         V.shipsData = null;
       } else {
         V.shipsErr = null;
+        V.shipsRetried = false;
         V.shipsData = j;
         V.shipsAt = Date.now();
       }
@@ -68480,6 +68490,15 @@ function shipsLoad() {
     })
     .catch(() => {
       clearTimeout(to);
+      // Free-tier cold start: first failure shows a waking banner and retries once in 15s.
+      if (!V.shipsRetried) {
+        V.shipsRetried = true;
+        V.shipsBusy = false; V.shipsErr = 'waking';
+        paintShips();
+        if (shipsTimer) clearTimeout(shipsTimer);
+        if (V.ships) shipsTimer = setTimeout(() => { shipsLoad(); }, 15000);
+        return;
+      }
       V.shipsBusy = false; V.shipsErr = 'down'; V.shipsData = null;
       paintShips();
       if (shipsTimer) clearTimeout(shipsTimer);
@@ -68497,7 +68516,9 @@ function paintShips() {
     slot.innerHTML = '<div class="about-box"><h3>Live ships near major ports worldwide</h3><p class="muted">' +
       (V.shipsErr === 'setup'
         ? 'Live tracking is being set up on our side - please check back soon.'
-        : 'Could not reach the live ship feed. The free tracking server sleeps when idle and can take up to a minute to wake - tap Retry.') +
+        : V.shipsErr === 'waking'
+          ? 'Waking the free tracking server - it sleeps when idle and takes up to a minute. Retrying automatically...'
+          : 'Could not reach the live ship feed. The free tracking server sleeps when idle and can take up to a minute to wake - tap Retry.') +
       '</p><p><button class="file-button is-compact" data-variant="secondary" id="ships-retry">Retry</button></p></div>';
     const rb = el('ships-retry');
     if (rb) rb.addEventListener('click', shipsLoad);
@@ -68840,6 +68861,30 @@ function headerHtml() {
 }
 function footerHtml() {
   return '<footer class="app-foot no-print">Copyright (c) 2026 ' + esc(OWNER) + '. All rights reserved.<br>Tariff descriptions and duty rates compiled from the official public government and WCO sources credited above; verify against the official source before filing.</footer>';
+}
+
+let lastJsErr = '';
+function errBannerHtml() {
+  return '<div id="jserr-bar" style="position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#3a1d1d;color:#ffd7d7;padding:8px 10px;border-radius:8px;font-size:12px;display:flex;gap:8px;align-items:center">' +
+    '<span style="flex:1">Something hit an error. The page may still work - if a feature looks stuck, reload once.</span>' +
+    '<button id="jserr-copy" style="white-space:nowrap">Copy details</button><button id="jserr-x" style="white-space:nowrap">Dismiss</button></div>';
+}
+function showErrBanner(msg) {
+  lastJsErr = String(msg || '').slice(0, 500);
+  if (document.getElementById('jserr-bar')) return;
+  const d = document.createElement('div');
+  d.innerHTML = errBannerHtml();
+  const bar = d.firstChild;
+  document.body.appendChild(bar);
+  bar.querySelector('#jserr-x').addEventListener('click', () => bar.remove());
+  bar.querySelector('#jserr-copy').addEventListener('click', () => {
+    const txt = lastJsErr + ' | ' + location.href + ' | ' + navigator.userAgent;
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+  });
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => { showErrBanner(e.message || e.error); });
+  window.addEventListener('unhandledrejection', (e) => { showErrBanner((e.reason && (e.reason.message || e.reason)) || 'unhandled promise rejection'); });
 }
 
 function boot(rootEl) {
