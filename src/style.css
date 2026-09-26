@@ -408,3 +408,22 @@ h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 @media (max-width: 640px) { .grid-2col { grid-template-columns: 1fr; } }
 
 .result-link.kbd-active { outline: 2px solid #1a6fd4; outline-offset: -2px; }
+
+/* ---- density layer (user-approved overhaul, Sep 2026) ---- */
+body { font-size: 14px; line-height: 1.35; }
+.app-head h1, .app-title { font-size: 19px; margin: 0 0 2px; }
+.detail-sec h3 { font-size: 13.5px; margin: 0 0 5px; }
+.brief-text h2 { font-size: 19px; }
+.brief-text h3 { font-size: 14px; margin-top: 16px; padding-top: 10px; }
+.detail-sec { margin-top: 12px; }
+.about-box { margin-top: 12px; }
+.about-box h3 { margin: 10px 0 4px; }
+.brief-box, .ai-panel, .link-panel, .cmp-col { padding: 10px; border-radius: 10px; }
+.report-box { padding: 12px; }
+.report-table th, .report-table td { padding: 5px 8px; }
+.report-table tbody tr:nth-child(even) td { background: rgba(127,127,127,0.06); }
+.detail-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 3px 18px; }
+.result-link { padding: 8px 6px; min-height: 40px; }
+.chip-sec h3 { margin: 10px 0 4px; }
+.link-group { padding: 7px 0; }
+.report-table-wrap { margin: 8px 0 12px; }
