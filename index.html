@@ -64862,12 +64862,12 @@ async function aiPickText(prompt, opts) {
       for (const prov of order) {
         if (AI_PROXY_URL) {
           aiSharedKey = true; aiProviderUsed = prov;
-          try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (e2) { /* next provider */ }
+          try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (e2) { console.warn('AI rescue failed via', prov, '-', String(e2 && e2.message || e2).slice(0, 120)); }
         }
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
         aiSharedKey = true; aiProviderUsed = prov;
-        try { return await PROVIDER_CALL[prov](alt, prompt, opts); } catch (e2) { /* next provider */ }
+        try { return await PROVIDER_CALL[prov](alt, prompt, opts); } catch (e2) { console.warn('AI rescue failed via', prov, 'pool -', String(e2 && e2.message || e2).slice(0, 120)); }
       }
       throw err;
     }
@@ -64912,7 +64912,7 @@ async function aiReportText(prompt, grounded, opts) {
         }
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
-        try { return prov === 'groq' ? await groqReport(alt, true) : prov === 'gemini' ? await geminiReport(alt, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](alt, prompt, opts)); } catch (e2) { /* next provider */ }
+        try { return prov === 'groq' ? await groqReport(alt, true) : prov === 'gemini' ? await geminiReport(alt, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](alt, prompt, opts)); } catch (e2) { console.warn('AI report rescue failed via', prov, 'pool -', String(e2 && e2.message || e2).slice(0, 120)); }
       }
       throw err;
     }
