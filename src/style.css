@@ -411,7 +411,7 @@ h1, h2, h3, h4, h5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
 
 /* ---- density layer (user-approved overhaul, Sep 2026) ---- */
 body { font-size: 14px; line-height: 1.35; }
-.app-head h1, .app-title { font-size: 19px; margin: 0 0 2px; }
+.app-head h1, .app-title { font-size: 21px; margin: 0 0 2px; }
 .detail-sec h3 { font-size: 13.5px; margin: 0 0 5px; }
 .brief-text h2 { font-size: 19px; }
 .brief-text h3 { font-size: 14px; margin-top: 16px; padding-top: 10px; }
@@ -422,7 +422,8 @@ body { font-size: 14px; line-height: 1.35; }
 .report-box { padding: 12px; }
 .report-table th, .report-table td { padding: 5px 8px; }
 .report-table tbody tr:nth-child(even) td { background: rgba(127,127,127,0.06); }
-.detail-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 3px 18px; }
+.detail-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 3px 20px; }
+.detail-desc { font-size: 15px; margin: 6px 0 10px; }
 .result-link { padding: 8px 6px; min-height: 40px; }
 .chip-sec h3 { margin: 10px 0 4px; }
 .link-group { padding: 7px 0; }
