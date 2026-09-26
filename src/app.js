@@ -4288,7 +4288,7 @@ function paintResults() {
   }
   if (exact.length || fam.length) {
     if (exact.length + fam.length >= 3) s += assistHtml(true);
-    s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length + exact.length) + ' ' + (fam.length + exact.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate.</p>';
+    s += '<p class="muted no-print">' + (r.out.length >= SEARCH_CAP ? SEARCH_CAP + '+' : fam.length + exact.length) + ' ' + (fam.length + exact.length === 1 ? 'match' : 'matches') + (r.fuzzy ? ' (spell-corrected)' : '') + (fam.length > 60 ? ' - showing first 60. Type more to narrow down.' : '') + ' One row per product - open it for every country\'s code and rate. <button class="linkbtn" id="res-csv">Download these results as CSV</button></p>';
     const row = (i, direct) => {
       const e = S.db.entries[i];
       return '<li><button class="result-link linkbtn-block' + (direct ? ' direct-hit' : '') + '" data-open="' + i + '">' + (e[0] !== 0 ? sysTagHtml(e[0]) : '') + '<span class="rcode">' + esc(fmtCode(e[0], e[1])) + '</span><span class="rdesc">' + esc(pretty(e[2])) + '</span>' + (direct ? ' <span class="muted">exact match</span>' : '') + '</button></li>';
