@@ -2,7 +2,7 @@
 // Source: UN Comtrade API (comtradeapi.un.org), every reporting country's world-import
 // table (flow M, partner World, values USD), ranked per code, top 8 kept. MARKET_WORLD is the
 // sum of all reporting countries' imports of the code (approximates world imports).
-// Baked 2026-09-24 - coverage 5845 codes from 309 reporters.
+// Baked 2026-09-26 - coverage 5845 codes from 309 reporters.
 export const MARKET_DATA_YEAR = 2025;
 export const MARKET_IMPORTERS: Record<string, [string, number][]> = {
   '010110': [["Suriname", 65753]],
