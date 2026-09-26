@@ -64400,6 +64400,12 @@ const SCOMET = {
 // official nomenclature descriptions. Each entry is a list of word-sets;
 // a word-set matches when ALL its words appear in a description (union of sets).
 const ALIASES = {
+  'keychain': [['key', 'chain']],
+  'keychains': [['key', 'chain']],
+  'keychain ring': [['key', 'chain']],
+  'key ring': [['key', 'chain']],
+  'keyring': [['key', 'chain']],
+  'key fob': [['key', 'chain']],
   'mobile phone': [['smartphones'], ['cellular', 'telephone']],
   'mobile phones': [['smartphones'], ['cellular', 'telephone']],
   'mobile': [['smartphones'], ['cellular', 'telephone']],
@@ -64649,6 +64655,7 @@ const builtinKeys = (kind) => String(kind === 'groq' ? BUILTIN_GROQ_KEYS : kind 
 const aiAvailable = () => Boolean(V.apiKey || AI_PROXY_URL || BUILTIN_GEMINI_KEYS.trim() || BUILTIN_GROQ_KEYS.trim() || BUILTIN_MISTRAL_KEYS.trim() || BUILTIN_NVIDIA_KEYS.trim());
 let aiSharedKey = false;
 let aiProviderUsed = 'gemini';
+let aiOwnKeyRejected = false; // saved own key got 401/refused - shared keys answered instead
 let aiLiveSearch = false;
 let aiCrossNote = null; // { by, ok, issues } - second-provider fact-check result for reports
 // Second-opinion check: when both providers' keys exist, the other provider reviews the answer.
@@ -64682,7 +64689,7 @@ const geminiAiLabel = () => (aiProviderUsed === 'groq'
   ? 'Mistral ' + (mistralModelUsed || MISTRAL_MODELS[0]) + ', model knowledge only - no live search'
   : aiProviderUsed === 'nvidia'
   ? 'NVIDIA ' + (nvidiaModelUsed || NVIDIA_MODELS[0]) + ', model knowledge only - no live search'
-  : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '');
+  : 'Gemini ' + geminiModelLabel() + (geminiGrounded ? ', Google Search grounded' : ', model knowledge only - no live search')) + (aiSharedKey ? ' (shared free key - may hit daily limit)' : '') + (aiOwnKeyRejected ? ' - your saved AI key was rejected, so the shared free keys answered' : '');
 const geminiEndpoint = (m) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent';
 async function geminiPost(apiKey, body) {
   if (Array.isArray(apiKey)) { // built-in shared pool: rotate on dead/maxed keys
@@ -64835,21 +64842,29 @@ async function oaiPoolPost(kind, url, models, apiKey, prompt, opts) {
 const mistralPost = (apiKey, prompt, opts) => oaiPoolPost('mistral', 'https://api.mistral.ai/v1/chat/completions', MISTRAL_MODELS, apiKey, prompt, opts);
 const nvidiaPost = (apiKey, prompt, opts) => oaiPoolPost('nvidia', 'https://integrate.api.nvidia.com/v1/chat/completions', NVIDIA_MODELS, apiKey, prompt, opts);
 const PROVIDER_CALL = { groq: (k, p, o) => groqPost(k, p, o), gemini: (k, p, o) => geminiText(k, p, o, false), mistral: (k, p, o) => mistralPost(k, p, o), nvidia: (k, p, o) => nvidiaPost(k, p, o) };
+function ownKeyNoteHtml() {
+  return aiOwnKeyRejected ? '<p class="muted">Your saved AI key was rejected by the provider - this answer used the shared free keys. Update or clear the key in AI settings.</p>' : '';
+}
 async function aiPickText(prompt, opts) {
   aiLiveSearch = false;
+  aiOwnKeyRejected = false;
   const order = shuffleProviders();
   if (V.apiKey) {
     const p = ownProvider();
     aiSharedKey = false; aiProviderUsed = p;
     try { return await PROVIDER_CALL[p](V.apiKey, prompt, opts); }
     catch (err) {
-      if (/not accepted|refused/i.test(err.message || '')) throw err;
+      if (/not accepted|refused/i.test(err.message || '')) aiOwnKeyRejected = true;
+      // Own key failed for any reason - rescue through the shared keys (proxy first, then any baked pool), every provider.
       for (const prov of order) {
-        if (prov === p) continue;
+        if (AI_PROXY_URL) {
+          aiSharedKey = true; aiProviderUsed = prov;
+          try { return await PROVIDER_CALL[prov]('', prompt, opts); } catch (e2) { /* next provider */ }
+        }
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
         aiSharedKey = true; aiProviderUsed = prov;
-        try { return await PROVIDER_CALL[prov](alt, prompt, opts); } catch (e2) { /* try the next provider */ }
+        try { return await PROVIDER_CALL[prov](alt, prompt, opts); } catch (e2) { /* next provider */ }
       }
       throw err;
     }
@@ -64871,6 +64886,7 @@ async function aiPickText(prompt, opts) {
 }
 async function aiReportText(prompt, grounded, opts) {
   aiLiveSearch = false;
+  aiOwnKeyRejected = false;
   const order = shuffleProviders();
   const geminiReport = (key, shared) => { aiSharedKey = shared; aiProviderUsed = 'gemini'; return geminiText(key, prompt, opts, grounded); };
   const groqReport = async (key, shared) => {
@@ -64884,12 +64900,16 @@ async function aiReportText(prompt, grounded, opts) {
     const p = ownProvider();
     try { return p === 'groq' ? await groqReport(V.apiKey, false) : p === 'gemini' ? await geminiReport(V.apiKey, false) : (aiSharedKey = false, aiProviderUsed = p, await PROVIDER_CALL[p](V.apiKey, prompt, opts)); }
     catch (err) {
-      if (/not accepted|refused/i.test(err.message || '')) throw err;
+      if (/not accepted|refused/i.test(err.message || '')) aiOwnKeyRejected = true;
+      // Own key failed for any reason - rescue through the shared keys (proxy first, then any baked pool), every provider.
       for (const prov of order) {
-        if (prov === p) continue;
+        if (AI_PROXY_URL) {
+          aiSharedKey = true; aiProviderUsed = prov;
+          try { return prov === 'groq' ? await groqReport('', true) : prov === 'gemini' ? await geminiReport('', true) : await PROVIDER_CALL[prov]('', prompt, opts); } catch (e2) { /* next provider */ }
+        }
         const alt = builtinKeys(prov);
         if (!alt.length) continue;
-        try { return prov === 'groq' ? await groqReport(alt, true) : prov === 'gemini' ? await geminiReport(alt, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](alt, prompt, opts)); } catch (e2) { /* try the next provider */ }
+        try { return prov === 'groq' ? await groqReport(alt, true) : prov === 'gemini' ? await geminiReport(alt, true) : (aiSharedKey = true, aiProviderUsed = prov, await PROVIDER_CALL[prov](alt, prompt, opts)); } catch (e2) { /* next provider */ }
       }
       throw err;
     }
@@ -67467,7 +67487,7 @@ function plainWordsHtml(e) {
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI plain-words reading of the official wording on this page - the wording itself, not this summary, is what customs applies.</p>';
   else if (V.plainErr) inner = '<p class="muted">' + esc(V.plainErr) + '</p>';
   else inner = '<p class="muted">The legal wording above in one simple read: what this code covers, everyday examples, what sits outside it. One tap, AI-written, free.</p>';
-  return '<div class="detail-sec no-print" id="plain-card"><h3>Plain words - what this code covers</h3><div id="plain-slot">' + inner + '</div>' +
+  return '<div class="detail-sec no-print" id="plain-card"><h3>Plain words - what this code covers</h3><div id="plain-slot">' + inner + '</div>' + ownKeyNoteHtml() +
     '<p><button class="file-button is-compact" id="plain-go"' + (V.plainBusy ? ' disabled' : '') + '>' + (V.plainBusy ? 'Writing...' : (body ? 'Rewrite plain words' : 'Plain words')) + '</button></p></div>';
 }
 async function plainWordsRun(e) {
@@ -67511,7 +67531,7 @@ function briefHtml(e) {
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI reading of the official figures baked into this file - the datasets below are the record, this summary is not.</p>';
   else if (V.briefErr) inner = '<p class="muted">' + esc(V.briefErr) + '</p>';
   else inner = '<p class="muted">A short AI brief on this code for a small trader: duty, best markets, timing, and what to watch - written only from the official figures baked into this file. One tap, free.</p>';
-  return '<div class="detail-sec no-print" id="brief-card"><h3>Trade brief - this code in a paragraph</h3><div id="brief-slot">' + inner + '</div>' +
+  return '<div class="detail-sec no-print" id="brief-card"><h3>Trade brief - this code in a paragraph</h3><div id="brief-slot">' + inner + '</div>' + ownKeyNoteHtml() +
     '<p><button class="file-button is-compact" id="brief-go"' + (V.briefBusy ? ' disabled' : '') + '>' + (V.briefBusy ? 'Writing...' : (body ? 'Rewrite trade brief' : 'Trade brief')) + '</button></p></div>';
 }
 async function briefRun(e) {
@@ -67601,7 +67621,7 @@ function docExplHtml(e) {
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI plain-words reading of the document and certificate list below - the list itself, not this summary, is what a shipment follows.</p>';
   else if (V.docErr) inner = '<p class="muted">' + esc(V.docErr) + '</p>';
   else inner = '<p class="muted">One tap: AI reads the export document and certificate list and explains each one in plain words - what it is, who issues it, and why customs or the buyer asks for it.</p>';
-  return '<div class="detail-sec no-print" id="doc-card"><h3>Documents explained - plain words</h3><div id="doc-slot">' + inner + '</div>' +
+  return '<div class="detail-sec no-print" id="doc-card"><h3>Documents explained - plain words</h3><div id="doc-slot">' + inner + '</div>' + ownKeyNoteHtml() +
     '<p><button class="file-button is-compact" id="doc-go"' + (V.docBusy ? ' disabled' : '') + '>' + (V.docBusy ? 'Writing...' : (body ? 'Rewrite explanation' : 'Explain the documents')) + '</button></p></div>';
 }
 async function docExplRun(e) {
@@ -67916,7 +67936,7 @@ function cmpVerdictHtml(a, b) {
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI reading of the two official wordings and figures on this page - the wordings and the datasets are the record, this summary is not.</p>';
   else if (V.cmpErr) inner = '<p class="muted">' + esc(V.cmpErr) + '</p>';
   else inner = '<p class="muted">One tap: AI reads both codes - wording, duty, scope - and says in plain words what goes under which, the cost difference, and what to double-check. Only the official data on this page is used.</p>';
-  return '<div class="detail-sec no-print" id="cmpv-card" style="margin-top:14px"><h3>Compare verdict - which code for what</h3><div id="cmpv-slot">' + inner + '</div>' +
+  return '<div class="detail-sec no-print" id="cmpv-card" style="margin-top:14px"><h3>Compare verdict - which code for what</h3><div id="cmpv-slot">' + inner + '</div>' + ownKeyNoteHtml() +
     '<p><button class="file-button is-compact" id="cmpv-go"' + (V.cmpBusy ? ' disabled' : '') + '>' + (V.cmpBusy ? 'Writing...' : (body ? 'Rewrite verdict' : 'Get verdict')) + '</button></p></div>';
 }
 async function cmpVerdictRun(a, b) {
@@ -68691,7 +68711,7 @@ function assistHtml(hasCands) {
   if (body) inner = '<p>' + esc(body).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ') + '</p><p class="muted">AI picked from the matches on this page only - the codes and wordings are the record, this note is not.</p>';
   else if (V.assistErr) inner = '<p class="muted">' + esc(V.assistErr) + '</p>';
   else inner = '<p class="muted">' + (hasCands ? 'Not sure which row is your product? One tap and AI reads these matches against your words and points at the one or two that fit.' : 'No matches for those words. One tap and AI suggests better search words or the likely product family.') + '</p>';
-  return '<div class="detail-sec no-print" id="assist-card" style="margin-bottom:12px"><div id="assist-slot">' + inner + '</div>' +
+  return '<div class="detail-sec no-print" id="assist-card" style="margin-bottom:12px"><div id="assist-slot">' + inner + '</div>' + ownKeyNoteHtml() +
     '<p><button class="file-button is-compact" id="assist-go"' + (V.assistBusy ? ' disabled' : '') + '>' + (V.assistBusy ? 'Thinking...' : (body ? 'Ask again' : (hasCands ? 'AI: pick from these' : 'AI: suggest search words'))) + '</button></p></div>';
 }
 async function assistRun(cands) {

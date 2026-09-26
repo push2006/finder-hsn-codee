@@ -2,6 +2,12 @@
 // official nomenclature descriptions. Each entry is a list of word-sets;
 // a word-set matches when ALL its words appear in a description (union of sets).
 export const ALIASES: Record<string, string[][]> = {
+  'keychain': [['key', 'chain']],
+  'keychains': [['key', 'chain']],
+  'keychain ring': [['key', 'chain']],
+  'key ring': [['key', 'chain']],
+  'keyring': [['key', 'chain']],
+  'key fob': [['key', 'chain']],
   'mobile phone': [['smartphones'], ['cellular', 'telephone']],
   'mobile phones': [['smartphones'], ['cellular', 'telephone']],
   'mobile': [['smartphones'], ['cellular', 'telephone']],
