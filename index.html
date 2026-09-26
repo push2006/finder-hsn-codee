@@ -68225,7 +68225,7 @@ function sanctionsCardHtml() {
     '<div id="san-res">' +
     (V.sanQ.trim() ? (hits.length ? '<ul class="result-list">' + hits.map((h) => '<li class="sanction-hit"><div><strong>' + esc(h.name) + '</strong></div><div class="muted">' + esc(h.list) + (h.program ? ' - ' + esc(h.program) : '') + '</div></li>').join('') + '</ul>' : '<p class="muted">No name match in the baked lists.</p>') : '') +
     '</div>' +
-    '<p class="muted src-line">Sources: <a href="https://sanctionslistservice.ofac.treas.gov/api/download/sdn.xml" target="_blank" rel="noreferrer">OFAC SDN XML</a> (downloaded 22 Sep 2026), <a href="https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions?locale=en" target="_blank" rel="noreferrer">EU consolidated list</a> (file generated 05/08/2026), <a href="https://www.dhs.gov/uflpa-entity-list" target="_blank" rel="noreferrer">DHS UFLPA Entity List</a> (checked 22 Sep 2026). ' + SANCTIONS.length.toLocaleString('en-US') + ' names. Not legal advice.</p>' +
+    '<p class="muted src-line">Sources: <a href="https://sanctionslistservice.ofac.treas.gov/api/download/sdn.xml" target="_blank" rel="noreferrer">OFAC SDN XML</a> (checked ' + SANCTIONS_META.checked + '), <a href="https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions?locale=en" target="_blank" rel="noreferrer">EU consolidated list</a> (file generated 05/08/2026), <a href="https://www.dhs.gov/uflpa-entity-list" target="_blank" rel="noreferrer">DHS UFLPA Entity List</a> (checked 22 Sep 2026). ' + SANCTIONS.length.toLocaleString('en-US') + ' names. Not legal advice.</p>' +
     '</div>';
 }
 function paintSanctions() {
@@ -68284,7 +68284,7 @@ function shipSanCardHtml() {
     '<div id="shipsan-res">' +
     (V.shipQ.trim() ? (hits.length ? '<ul class="result-list">' + hits.map((h) => '<li class="sanction-hit"><div><strong>' + esc(h.name) + '</strong>' + (h.imo ? ' <span class="muted">IMO ' + esc(h.imo) + '</span>' : '') + '</div><div class="muted">' + esc([h.vt, h.flag, h.program].filter(Boolean).join(' - ')) + '</div></li>').join('') + '</ul>' : '<p class="muted">No vessel match in the baked OFAC SDN entries.</p>') : '') +
     '</div>' +
-    '<p class="muted src-line">Source: <a href="https://sanctionslistservice.ofac.treas.gov/api/download/sdn.xml" target="_blank" rel="noreferrer">OFAC SDN</a> (CSV dated 22 Sep 2026), ' + SHIP_SANC.length.toLocaleString('en-US') + ' sanctioned vessels. Not legal advice.</p>' +
+    '<p class="muted src-line">Source: <a href="https://sanctionslistservice.ofac.treas.gov/api/download/sdn.xml" target="_blank" rel="noreferrer">OFAC SDN</a> (checked ' + SANCTIONS_META.checked + '), ' + SHIP_SANC.length.toLocaleString('en-US') + ' sanctioned vessels. Not legal advice.</p>' +
     '</div>';
 }
 
@@ -68363,6 +68363,15 @@ function searchIdleHtml() {
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
     '<h3>What is inside</h3><ul>' + INSIDE_LIST.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
     '<h3>Sources</h3><ul>' + SYS.map((sy) => '<li><strong>' + sy.tag + '</strong>: ' + esc(sy.src) + '. <a href="' + sy.url + '" target="_blank" rel="noreferrer">Reference</a></li>').join('') + '</ul>' +
+    '<h3>Data freshness - last verified</h3><ul>' + [
+      ['Sanctions - OFAC, EU, UFLPA and vessels', SANCTIONS_META.checked + ' (auto-checked daily)'],
+      ['India GST rates', 'Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025 - GST 2.0'],
+      ['India trade partners and values', 'UN Comtrade, calendar year ' + TRADE_PARTNERS_YEAR],
+      ['Top world markets', 'UN Comtrade, ' + MARKET_DATA_YEAR],
+      ['Trade trend', 'UN Comtrade, ' + TRADE_TREND_YEARS[0] + ' to ' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1]],
+      ['Trade seasonality', 'UN Comtrade monthly, ' + TRADE_SEASON_YEARS[0] + ' to ' + TRADE_SEASON_YEARS[TRADE_SEASON_YEARS.length - 1]],
+      ['World ports', 'NGA World Port Index + Ministry of Shipping statistics, Sep 2026'],
+    ].map((x) => '<li><strong>' + esc(x[0]) + '</strong>: ' + esc(x[1]) + '</li>').join('') + '</ul>' +
     '<p class="muted">Duty and GST rates change - always verify on the official portal before filing. Data as of the Sep 2026 build.</p>' +
     '</div></div>';
   return s;
