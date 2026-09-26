@@ -183,10 +183,12 @@ setInterval(() => {
 }, 300e3);
 
 let aisBackoff = 1000;
+let aisLiveWs = null;
+process.on('SIGTERM', () => { try { if (aisLiveWs) aisLiveWs.close(1000, 'shutdown'); } catch (e) { } setTimeout(() => process.exit(0), 500); });
 function aisConnect() {
   if (!AIS_KEY || typeof WebSocket !== 'function') return;
   let ws;
-  try { ws = new WebSocket(AIS_URL); } catch (e) { return aisRetry(); }
+  try { ws = new WebSocket(AIS_URL); aisLiveWs = ws; } catch (e) { return aisRetry(); }
   ws.onopen = () => {
     aisBackoff = 1000;
     aisConnected = true;
