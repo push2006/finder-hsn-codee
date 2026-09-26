@@ -422,7 +422,8 @@ body { font-size: 14px; line-height: 1.35; }
 .report-box { padding: 12px; }
 .report-table th, .report-table td { padding: 5px 8px; }
 .report-table tbody tr:nth-child(even) td { background: rgba(127,127,127,0.06); }
-.detail-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 3px 20px; }
+.detail-facts { display: block; columns: 2 260px; column-gap: 28px; }
+.detail-facts div { break-inside: avoid; margin-bottom: 7px; grid-template-columns: 110px 1fr; }
 .detail-desc { font-size: 15px; margin: 6px 0 10px; }
 .result-link { padding: 8px 6px; min-height: 40px; }
 .chip-sec h3 { margin: 10px 0 4px; }
