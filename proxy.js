@@ -136,6 +136,7 @@ function aisEtaText(e) {
 const aisShips = new Map(); // mmsi -> record
 let aisMsgCount = 0, aisLastMsgAt = 0, aisConnected = false;
 let aisErrFrames = 0, aisLastFrameType = '', aisLastFrameNote = '';
+let aisCloseCount = 0, aisLastCloseAt = 0, aisLastCloseCode = 0, aisErrCount = 0, aisLastErrAt = 0;
 const aisBootedAt = Date.now();
 
 function aisUpsert(m) {
@@ -212,8 +213,8 @@ function aisConnect() {
       aisUpsert(m);
     } catch (e) { aisErrFrames++; aisLastFrameNote = 'unparseable ' + Object.prototype.toString.call(ev.data); }
   };
-  ws.onclose = () => { aisConnected = false; aisRetry(); };
-  ws.onerror = () => { try { ws.close(); } catch (e) { } };
+  ws.onclose = (ev) => { aisConnected = false; aisCloseCount++; aisLastCloseAt = Date.now(); aisLastCloseCode = ev && ev.code ? ev.code : 0; console.log('aisstream closed', aisLastCloseCode, 'attempt', aisCloseCount); aisRetry(); };
+  ws.onerror = () => { aisErrCount++; aisLastErrAt = Date.now(); try { ws.close(); } catch (e) { } };
 }
 function aisRetry() {
   aisConnected = false;
@@ -286,6 +287,9 @@ http.createServer(async (req, res) => {
         keySet: !!AIS_KEY, connected: aisConnected, messages: aisMsgCount, vessels: aisShips.size,
         perPort: aisPerPort(), uptimeSec: Math.round((Date.now() - aisBootedAt) / 1000), warming: aisWarming(),
         lastFrameType: aisLastFrameType || undefined, errorFrames: aisErrFrames || undefined,
+        closes: aisCloseCount || undefined, lastCloseCode: aisLastCloseCode || undefined,
+        lastCloseAgoSec: aisLastCloseAt ? Math.round((Date.now() - aisLastCloseAt) / 1000) : undefined,
+        wsErrors: aisErrCount || undefined,
         lastFrameNote: aisLastFrameNote || undefined,
         note: typeof WebSocket !== 'function' ? 'node >= 22 required for the ais feed' : undefined,
       },
