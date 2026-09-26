@@ -43,6 +43,10 @@ if (tpCount < 20 || tpCount !== tpClaim) fail('tradepartners malformed: entries 
 const tt = fs.readFileSync('src/tradetrend.ts', 'utf8');
 const ttCount = (tt.match(/^  '\d{6}':/gm) || []).length;
 if (ttCount < 3000 || !/TRADE_TREND_YEARS = \[\d{4}, \d{4}, \d{4}, \d{4}, \d{4}\]/.test(tt)) fail('tradetrend malformed: entries ' + ttCount);
+// SHIP_SANC program tags must be clean ("IRAN, SDGT"), never bracket-corrupted ("IRAN] [SDGT") - the bake script once mangled multi-tag OFAC programs.
+const shipLine = (fs.readFileSync('src/app.js', 'utf8').match(/const SHIP_SANC = \[.*\];/) || [''])[0];
+if (!shipLine) fail('SHIP_SANC table missing');
+if (/[A-Z]\] \[[A-Z]/.test(shipLine)) fail('SHIP_SANC bracket-corrupted program tags');
 const idx = fs.readFileSync('index.html', 'utf8');
 if (idx.length < 8e6 || !idx.includes('boot(document')) fail('index.html incomplete');
 for (const m of idx.matchAll(/<script>([\s\S]*?)<\/script>/g)) { try { new vm.Script(m[1]); } catch (e) { fail('JS syntax error in built page: ' + e.message); } }
