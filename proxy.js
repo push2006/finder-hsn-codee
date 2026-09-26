@@ -244,6 +244,8 @@ function aisPerPort() {
   return c;
 }
 const aisWarming = () => (Date.now() - aisBootedAt < 10 * 60e3) || aisShips.size === 0;
+// Stalled: up >10 min, never connected, no frames - the upstream key/feed is dead, not warming.
+const aisStalled = () => !aisConnected && aisMsgCount === 0 && (Date.now() - aisBootedAt > 10 * 60e3);
 // ---------------- end live ships ----------------
 
 const ROUTES = [
@@ -285,7 +287,7 @@ http.createServer(async (req, res) => {
       providers: Object.keys(POOLS).filter((k) => POOLS[k].length),
       ais: {
         keySet: !!AIS_KEY, connected: aisConnected, messages: aisMsgCount, vessels: aisShips.size,
-        perPort: aisPerPort(), uptimeSec: Math.round((Date.now() - aisBootedAt) / 1000), warming: aisWarming(),
+        perPort: aisPerPort(), uptimeSec: Math.round((Date.now() - aisBootedAt) / 1000), warming: aisWarming(), stalled: aisStalled(),
         lastFrameType: aisLastFrameType || undefined, errorFrames: aisErrFrames || undefined,
         closes: aisCloseCount || undefined, lastCloseCode: aisLastCloseCode || undefined,
         lastCloseAgoSec: aisLastCloseAt ? Math.round((Date.now() - aisLastCloseAt) / 1000) : undefined,
@@ -310,7 +312,7 @@ http.createServer(async (req, res) => {
     out.sort((a, b) => a.seenAgoSec - b.seenAgoSec);
     const counts = aisPerPort();
     return send(res, 200, {
-      ok: true, warming: aisWarming(), updated: new Date().toISOString(), count: out.length,
+      ok: true, warming: aisWarming(), stalled: aisStalled(), updated: new Date().toISOString(), count: out.length,
       ports: AIS_PORTS_ALL.map((p) => ({ code: p.code, name: p.name, count: counts[p.code] || 0 })),
       vessels: out.slice(0, 150),
     });

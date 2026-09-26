@@ -3957,7 +3957,7 @@ function paintShips() {
     .map((x) => '<button class="chip' + (V.shipsPort === x.code ? ' on' : '') + '" data-shipsp="' + x.code + '">' + esc(x.name) + ' (' + x.count + ')</button>').join('');
   let rows = '';
   if (!d.vessels.length) {
-    rows = '<p class="muted">No vessels reporting in this area right now' + (d.warming ? ' - the feed just woke up and positions are still arriving, give it a few minutes' : '') + '.</p>';
+    rows = '<p class="muted">No vessels reporting in this area right now' + (d.stalled ? ' - the live ship feed is down on the provider side right now. It retries on its own and recovers without you doing anything; the port figures below are unaffected.' : (d.warming ? ' - the feed just woke up and positions are still arriving, give it a few minutes' : '')) + '.</p>';
   } else {
     rows = '<div class="report-table-wrap"><table class="report-table"><thead><tr><th>Vessel</th><th>Type</th><th>Flag</th><th>Speed</th><th>Destination</th><th>ETA (UTC)</th><th>Port area</th><th>Last seen</th></tr></thead><tbody>' +
       d.vessels.map((v) => '<tr><td><strong>' + esc(v.name || 'MMSI ' + v.mmsi) + '</strong></td><td>' + esc(v.type || '-') + '</td><td>' + esc(v.flag || '-') + '</td><td>' + (v.sog !== null ? v.sog + ' kn' : '-') + '</td><td>' + esc(v.dest || '-') + '</td><td>' + esc(v.eta || '-') + '</td><td>' + esc((d.ports.find((x) => x.code === v.port) || {}).name || v.port) + '</td><td>' + esc(shipsAgo(v.seenAgoSec)) + '</td></tr>').join('') +
