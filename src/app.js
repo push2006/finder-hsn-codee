@@ -401,6 +401,16 @@ function gstFor(code) {
 
 async function decodeData() {
   const bin = Uint8Array.from(atob(DATA_B64), (c) => c.charCodeAt(0));
+  // Informational fingerprint of the bundled compressed dataset. This does not
+  // prove that a government source is current or that the build is authenticated.
+  if (globalThis.crypto && crypto.subtle) {
+    crypto.subtle.digest('SHA-256', bin).then((hash) => {
+      const hex = Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
+      const label = document.getElementById('data-fingerprint');
+      if (label) label.textContent = hex.slice(0, 16);
+      V.dataFingerprint = hex.slice(0, 16);
+    }).catch(() => {});
+  }
   // Fast native path (Chrome 80+, Safari 16.4+, Firefox 113+).
   if (typeof DecompressionStream === 'function') {
     const ds = new DecompressionStream('gzip');
@@ -727,6 +737,7 @@ const V = { // per-view ephemeral state
   pw: false,
   cp: false, cpCountry: '',
   q: '', sysFilter: -1, browse: false, sanQ: '', shipQ: '', originQ: '',
+  dark: (() => { try { return localStorage.getItem('hsn-dark') === 'true'; } catch { return false; } })(),
   cmpQ: '',
   clsQ: '', clsBusy: false, clsErr: null, clsHits: null, clsOffline: null,
   dIdx: null, needKey: false, busy: false, settingsOpen: false, briefError: null, copied: false,
@@ -3252,9 +3263,105 @@ function detailHtml(idx) {
   return s + '</div>';
 }
 
+// Keep the line identity and primary actions visible. Secondary information can
+// be opened on demand; existing controls stay in the DOM and keep their handlers.
+function foldDetailSections(root) {
+  const keepOpen = /^(Product intel|Landed cost|Full report|Compare everywhere)/i;
+  root.querySelectorAll('.detail-sec').forEach((section) => {
+    const heading = Array.from(section.children).find((child) => child.tagName === 'H3');
+    if (!heading || section.classList.contains('action-row')) return;
+    const label = heading.textContent.trim();
+    const details = document.createElement('details');
+    details.className = 'detail-fold';
+    details.open = keepOpen.test(label);
+    const summary = document.createElement('summary');
+    summary.textContent = label;
+    details.appendChild(summary);
+    heading.remove();
+    while (section.firstChild) details.appendChild(section.firstChild);
+    section.appendChild(details);
+  });
+}
+
+function groupHomeTools(root) {
+  const box = root.querySelector('.about-box');
+  if (!box) return;
+  const ids = {
+    'browse-toggle': 'Explore', 'tsum-toggle': 'Explore', 'cp-toggle': 'Explore', 'rev-toggle': 'Explore',
+    'transit-toggle': 'Trade tools', 'payc-toggle': 'Trade tools',
+    'portcomm-toggle': 'Trade tools', 'portwx-toggle': 'Trade tools',
+    'ships-toggle': 'Live ships'
+  };
+  const names = ['Explore', 'Trade tools', 'Live ships'];
+  const nodes = Array.from(box.children);
+  const first = nodes.findIndex((node) => node.querySelector && node.querySelector('#browse-toggle'));
+  const last = nodes.findIndex((node) => node.querySelector && node.querySelector('#rev-toggle'));
+  if (first < 0 || last < first) return;
+  const tabs = document.createElement('div');
+  tabs.className = 'home-tabs';
+  tabs.setAttribute('role', 'tablist');
+  tabs.setAttribute('aria-label', 'Search tools');
+  const panels = {};
+  names.forEach((name, i) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'home-tab'; button.textContent = name;
+    button.id = 'home-tab-' + i; button.setAttribute('role', 'tab');
+    button.setAttribute('aria-controls', 'home-panel-' + i);
+    button.addEventListener('click', () => {
+      V.homeTab = name;
+      names.forEach((n, j) => {
+        panels[n].hidden = n !== name;
+        const tab = document.getElementById('home-tab-' + j);
+        tab.setAttribute('aria-selected', String(n === name));
+        tab.tabIndex = n === name ? 0 : -1;
+      });
+    });
+    tabs.appendChild(button);
+    const panel = document.createElement('div');
+    panel.id = 'home-panel-' + i; panel.className = 'home-tab-panel';
+    panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', button.id);
+    panels[name] = panel;
+  });
+  box.insertBefore(tabs, nodes[first]);
+  names.forEach((name) => box.insertBefore(panels[name], nodes[first]));
+  let group = 'Explore';
+  const end = nodes.findIndex((node, i) => i > last && node.tagName === 'H3' && node.textContent.trim() === 'What is inside');
+  nodes.slice(first, end < 0 ? last + 1 : end).forEach((node) => {
+    if (!node.parentNode || node.parentNode !== box) return;
+    const match = node.querySelector && node.querySelector('button[id]');
+    if (match && ids[match.id]) group = ids[match.id];
+    panels[group].appendChild(node);
+  });
+  document.getElementById('home-tab-' + Math.max(0, names.indexOf(V.homeTab || 'Explore'))).click();
+}
+
+function updateStructuredData(entry) {
+  let node = document.getElementById('hsn-structured-data');
+  if (!node) {
+    node = document.createElement('script');
+    node.type = 'application/ld+json';
+    node.id = 'hsn-structured-data';
+    document.head.appendChild(node);
+  }
+  const page = 'https://finder-hsn-codee.onrender.com/#code=' + entry[0] + ':' + entry[1];
+  const schema = {
+    '@context': 'https://schema.org', '@type': 'WebPage',
+    name: fmtCode(entry[0], entry[1]) + ' - ' + pretty(entry[2]),
+    description: pretty(entry[2]), url: page,
+    isPartOf: { '@type': 'WebSite', name: 'Worldwide HSN Code Finder', url: 'https://finder-hsn-codee.onrender.com/' }
+  };
+  node.textContent = JSON.stringify(schema).replace(/</g, '\\u003c');
+}
+function clearStructuredData() {
+  const node = document.getElementById('hsn-structured-data');
+  if (node) node.remove();
+}
+
 function paintDetail() {
   const idx = S.sel;
   el('view').innerHTML = detailHtml(idx);
+  updateStructuredData(S.db.entries[idx]);
+  foldDetailSections(el('view'));
   // Focus management: land screen-reader/keyboard users on the detail heading.
   const dh = el('view').querySelector('h2, h1');
   if (dh) { dh.setAttribute('tabindex', '-1'); dh.focus({ preventScroll: false }); }
@@ -3821,7 +3928,7 @@ function searchIdleHtml() {
     (V.browse ? '<div class="chapter-grid">' + S.db.chapters.map((i) => '<button class="chapter-item" data-open="' + i + '"><strong>' + esc(S.db.entries[i][1]) + '</strong> ' + esc(pretty(S.db.entries[i][2])) + '</button>').join('') + '</div>' : '') +
     '<h3>What is inside</h3><ul>' + INSIDE_LIST.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
     '<h3>Sources</h3><ul>' + SYS.map((sy) => '<li><strong>' + sy.tag + '</strong>: ' + esc(sy.src) + '. <a href="' + sy.url + '" target="_blank" rel="noreferrer">Reference</a></li>').join('') + '</ul>' +
-    '<h3>Data freshness - last verified</h3><ul>' + [
+    '<h3>Data freshness - last verified</h3><p class="muted">Data fingerprint (SHA-256, first 16 characters): <span id="data-fingerprint">' + esc(V.dataFingerprint || 'checking...') + '</span>. Use it to tell two builds apart; it does not prove sources are current.</p><ul>' + [
       ['Sanctions - OFAC, EU, UFLPA and vessels', SANCTIONS_META.checked + ' (auto-checked daily)'],
       ['India GST rates', 'Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025 - GST 2.0'],
       ['India trade partners and values', 'UN Comtrade, calendar year ' + TRADE_PARTNERS_YEAR],
@@ -4158,6 +4265,7 @@ function paintIdle() {
   const idle = !V.q.trim();
   slot.innerHTML = idle ? searchIdleHtml() : '';
   if (!idle) return;
+  groupHomeTools(slot);
   bindOpens(slot);
   paintSanctions();
   paintShipSanctions();
@@ -4330,12 +4438,14 @@ function openEntry(i) {
   window.scrollTo(0, 0);
 }
 function back() {
+  clearStructuredData();
   S.sel = null; S.cmpA = null; S.cmpB = null; S.showList = false;
   try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
   render();
 }
 function paintNav() { /* nav count refresh placeholder - shortlist count shown on search idle */ }
 function render() {
+  if (S.sel === null) clearStructuredData();
   if (S.cmpA !== null) paintCompare();
   else if (S.showList) paintShortlist();
   else if (S.sel !== null) paintDetail();
@@ -4344,6 +4454,7 @@ function render() {
 
 function headerHtml() {
   return '<div class="app-head no-print"><h1 class="app-title">Worldwide HSN Code Finder</h1>' +
+    '<button type="button" class="theme-toggle no-print" id="theme-toggle" aria-label="Switch to ' + (V.dark ? 'light' : 'dark') + ' mode" aria-pressed="' + V.dark + '">' + (V.dark ? 'Light mode' : 'Dark mode') + '</button>' +
     '<p class="app-fact">' + SYS.length + ' official systems - ' + S.db.entries.length.toLocaleString('en-US') + ' codes</p>' +
     '<p class="app-intro">Search WCO, India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru, China and the UAE. Every code links international roots to national and statistical lines, with detail and PDF.</p></div>';
 }
@@ -4380,7 +4491,16 @@ export function boot(rootEl) {
   decodeData().then((entries) => {
     S.db = loadDb(entries);
     S.changes = checkChanges(S.db, Array.from(new Set(loadKeys('hsn-favs').concat(loadKeys('hsn-shortlist')))));
+    document.documentElement.classList.toggle('dark-mode', V.dark);
     rootEl.innerHTML = '<div class="app-shell">' + headerHtml() + '<div id="view"></div>' + footerHtml() + '</div>';
+    el('theme-toggle').addEventListener('click', () => {
+      V.dark = !V.dark;
+      document.documentElement.classList.toggle('dark-mode', V.dark);
+      el('theme-toggle').textContent = V.dark ? 'Light mode' : 'Dark mode';
+      el('theme-toggle').setAttribute('aria-label', 'Switch to ' + (V.dark ? 'light' : 'dark') + ' mode');
+      el('theme-toggle').setAttribute('aria-pressed', String(V.dark));
+      try { localStorage.setItem('hsn-dark', String(V.dark)); } catch { /* storage disabled */ }
+    });
     const m = location.hash.match(/#code=(\d+):(\d+)/);
     if (m) {
       const i = S.db.keyToIdx.get(Number(m[1]) + ':' + m[2]);

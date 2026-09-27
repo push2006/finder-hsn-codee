@@ -429,3 +429,26 @@ body { font-size: 14px; line-height: 1.35; }
 .chip-sec h3 { margin: 10px 0 4px; }
 .link-group { padding: 7px 0; }
 .report-table-wrap { margin: 8px 0 12px; }
+
+/* Compact secondary sections and home tools, with native keyboard controls. */
+.detail-fold > summary { cursor: pointer; font-size: 13.5px; font-weight: 700; line-height: 1.45; padding: 4px 0; }
+.detail-fold > summary:focus-visible, .home-tab:focus-visible { outline: 2px solid var(--ds-ink); outline-offset: 2px; }
+.detail-fold[open] > summary { margin-bottom: 8px; }
+.detail-fold:not([open]) { min-height: 22px; }
+.home-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--ds-hairline); margin: 10px 0; }
+.home-tab { border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; background: transparent; color: var(--ds-ink); cursor: pointer; font: inherit; }
+.home-tab[aria-selected="true"] { border-bottom-color: var(--ds-ink); font-weight: 700; }
+.home-tab-panel[hidden] { display: none !important; }
+@media print { .detail-fold { display: block !important; } .detail-fold > summary { display: none; } }
+
+/* Owner-selected dark view. Browser and hosted File share this preference locally. */
+.theme-toggle { border: 1px solid var(--ds-hairline); background: var(--ds-card); color: var(--ds-ink); border-radius: 8px; padding: 7px 11px; font: inherit; cursor: pointer; margin: 5px 0 6px; }
+.theme-toggle:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
+html.dark-mode { --ds-page: #131c2a; --ds-card: #202d3e; --ds-ink: #f1f4f9; --ds-ink-2: #c4cfdf; --ds-hairline: #43536b; --ds-accent: #8ba8ff; --ds-teal: #48c6b5; --line: #43536b; --card: #202d3e; color-scheme: dark; }
+html.dark-mode .app-shell { background: var(--ds-page); }
+html.dark-mode .sfield input, html.dark-mode .cmp-input, html.dark-mode .classify-row input, html.dark-mode .note-box, html.dark-mode .duty-row, html.dark-mode .sl-table, html.dark-mode .cmp-card, html.dark-mode .ccy-card, html.dark-mode .currency-card, html.dark-mode .sanc-pick, html.dark-mode .boom-sel, html.dark-mode .cc-card { background: var(--ds-card); color: var(--ds-ink); border-color: var(--ds-hairline); }
+html.dark-mode .alert-banner, html.dark-mode .sanc-amber { background: #403622; color: #ffe5a4; border-color: #8e7541; }
+html.dark-mode .port-chip, html.dark-mode .report-table tbody tr:nth-child(even) td { background: #2a3b50; }
+html.dark-mode .report-table thead th, html.dark-mode .fta-t th { background: #344b65; }
+html.dark-mode .fta-t td.num, html.dark-mode .sl-note, html.dark-mode .duty-val.none { color: var(--ds-ink-2); }
+@media print { html.dark-mode { --ds-page: #fff; --ds-card: #fff; --ds-ink: #000; --ds-ink-2: #333; --ds-hairline: #bbb; color-scheme: light; } .theme-toggle { display: none !important; } }
