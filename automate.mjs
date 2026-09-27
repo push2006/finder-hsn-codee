@@ -48,7 +48,11 @@ const shipLine = (fs.readFileSync('src/app.js', 'utf8').match(/const SHIP_SANC =
 if (!shipLine) fail('SHIP_SANC table missing');
 if (/[A-Z]\] \[[A-Z]/.test(shipLine)) fail('SHIP_SANC bracket-corrupted program tags');
 const idx = fs.readFileSync('index.html', 'utf8');
-if (idx.length < 8e6 || !idx.includes('boot(document')) fail('index.html incomplete');
-for (const m of idx.matchAll(/<script>([\s\S]*?)<\/script>/g)) { try { new vm.Script(m[1]); } catch (e) { fail('JS syntax error in built page: ' + e.message); } }
+const offline = fs.readFileSync('offline.html', 'utf8');
+const dataFiles = fs.readdirSync('.').filter((f) => /^data\.[0-9a-f]{12}\.js$/.test(f));
+if (idx.length < 100000 || idx.length > 2000000 || !idx.includes('data.src =') || dataFiles.length !== 1 || !idx.includes(dataFiles[0])) fail('hosted shell or dataset incomplete');
+if (fs.statSync(dataFiles[0]).size < 5000000 || offline.length < 8000000 || !offline.includes('boot(document') || !offline.includes('var DATA_B64 =')) fail('offline copy or code dataset incomplete');
+for (const f of [idx, offline]) for (const m of f.matchAll(/<script>([\s\S]*?)<\/script>/g)) { try { new vm.Script(m[1]); } catch (e) { fail('JS syntax error in built page: ' + e.message); } }
+try { new vm.Script(fs.readFileSync(dataFiles[0], 'utf8')); new vm.Script(fs.readFileSync('sw.js', 'utf8')); } catch (e) { fail('JS syntax error in data or service worker: ' + e.message); }
 fs.writeFileSync('state/heartbeat.txt', new Date().toISOString().slice(0, 7) + '\n'); // monthly commit keeps the schedule alive
 console.log('ALL CHECKS PASSED');
