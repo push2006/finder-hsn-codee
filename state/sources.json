@@ -13,25 +13,29 @@
  },
  "US": {
   "fails": 0,
-  "sig": "h:Wed, 02 Sep 2026 23:17:35 GMT",
-  "cand": "h:Wed, 02 Sep 2026 23:17:34 GMT",
-  "n": 1
+  "sig": "h:Wed, 02 Sep 2026 23:17:34 GMT",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-09-27"
  },
  "EU": {
   "fails": 0,
   "sig": "s:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "cand": null,
-  "n": 0
+  "cand": "s:2eb39e6adb88d916b0e588a4f960ba6e5fdb1694099e9643d96397a2c40d2632",
+  "n": 1
  },
  "UK": {
   "fails": 0,
-  "sig": "h:W/\"a93cd030126c121dd2b139f1d612dcf7\"",
-  "cand": "h:W/\"9c706846336d50c32b1ecb71a68c4102\"",
-  "n": 1
+  "sig": "h:W/\"9c706846336d50c32b1ecb71a68c4102\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-09-27"
  },
  "KR": {
   "fails": 0,
-  "sig": "s:2d8a446b32580402993b7d848df97551ce3a0864ee213bcb15ecf5ad2281082d"
+  "sig": "s:2d8a446b32580402993b7d848df97551ce3a0864ee213bcb15ecf5ad2281082d",
+  "cand": null,
+  "n": 0
  },
  "CA": {
   "fails": 0,
@@ -53,14 +57,15 @@
  },
  "BR": {
   "fails": 0,
-  "sig": "s:6c8c90f6b9aa7d2b730447af0c29f159d76161a2c516578100c448890c4a274a",
-  "cand": "s:8a5ba427e764c950c935afad1e741000855f987e436aa7a9e4c2c1c3df1b5cce",
-  "n": 1
+  "sig": "s:8a5ba427e764c950c935afad1e741000855f987e436aa7a9e4c2c1c3df1b5cce",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-09-27"
  },
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:e07521532eafe893109cc9dde0c4aded41eaaf6aa4363a35ed11739ce4fb0871",
+  "cand": "s:4333691586812cdc63f7c7410dea4ff07e95c84602530344a40f4e58780d3a29",
   "n": 1
  },
  "NZ": {
@@ -76,10 +81,10 @@
   "n": 0
  },
  "SG": {
-  "fails": 2
+  "fails": 3
  },
  "IL": {
-  "fails": 2
+  "fails": 3
  },
  "MX": {
   "fails": 0,
@@ -95,25 +100,35 @@
  },
  "HK": {
   "fails": 0,
-  "sig": "s:d296089fba536861fa943e5a37f8f09368419412eff0adec09a0520e5739dfe1"
+  "sig": "s:d296089fba536861fa943e5a37f8f09368419412eff0adec09a0520e5739dfe1",
+  "cand": null,
+  "n": 0
  },
  "ZA": {
   "fails": 0,
-  "sig": "h:\"6a903c42-2b882b\""
+  "sig": "h:\"6a903c42-2b882b\"",
+  "cand": null,
+  "n": 0
  },
  "PE": {
   "fails": 0,
-  "sig": "s:74aae1ada098caa58460782af12e4591ccbef75eeecfe37d8b43aadbbca464f1"
+  "sig": "s:74aae1ada098caa58460782af12e4591ccbef75eeecfe37d8b43aadbbca464f1",
+  "cand": null,
+  "n": 0
  },
  "SAC": {
   "fails": 0,
-  "sig": "s:a84bdc6982e31ba7f1acd08497eace9b0cdd78d17d63010ed5e03b733c78a9eb"
+  "sig": "s:a84bdc6982e31ba7f1acd08497eace9b0cdd78d17d63010ed5e03b733c78a9eb",
+  "cand": null,
+  "n": 0
  },
  "CN": {
   "fails": 0,
-  "sig": "h:\"d8eb88eaf64288d8208f0ba898f8093b-gzip\""
+  "sig": "h:\"d8eb88eaf64288d8208f0ba898f8093b-gzip\"",
+  "cand": "h:\"bb7e68754b0cdfc87dbc67b7d4605b88-gzip\"",
+  "n": 1
  },
  "AE": {
-  "fails": 1
+  "fails": 2
  }
 }
