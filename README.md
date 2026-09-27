@@ -1,13 +1,13 @@
 # Worldwide HSN Code Finder
 
-Free, offline-first tariff code finder covering 22 official systems (WCO HS 2022 + India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru, China, UAE and India SAC), 340,232 codes, as a single `index.html`.
+Free, offline-first tariff code finder covering 22 official systems (WCO HS 2022 + India, USA, EU, UK, Korea, Canada, Japan, Australia, Brazil, Taiwan, New Zealand, Norway, Singapore, Israel, Mexico, Hong Kong, South Africa, Peru, China, UAE and India SAC), 340,232 codes, as a fast hosted page plus a self-contained `offline.html` download.
 
 Live: https://finder-hsn-codee.onrender.com/
 
 ## What it does
 
 **Find the code**
-- **Search anything**: product names, trader terms, typo-tolerant ("DISEL" finds diesel), code prefixes. One row per product; each row leads with the direct deepest national code (India first), never the 6-digit family parent. Works fully offline - no AI needed to search.
+- **Search anything**: product names, trader terms, typo-tolerant ("DISEL" finds diesel), code prefixes. One row per product; each row leads with the direct deepest national code (India first), never the 6-digit family parent. The `offline.html` download works fully offline - no AI needed to search.
 - **Suggest best codes / search assist**: AI reads the shown matches against your words and points at the fitting rows; on zero matches it suggests better search words.
 - **Reverse lookup**: have a foreign code? Crosswalk it to the India HSN line.
 - **HS 2022 change correlation**: code changed in the HS 2022 revision? The detail page maps old to new (CBSA correlation tables).
@@ -36,7 +36,7 @@ Live: https://finder-hsn-codee.onrender.com/
 1. **Static site** (Render, this repo root): serves `index.html`, auto-deploys on every push to `main`.
 2. **AI + AIS proxy** (`proxy.js`, Render web service on the same repo, start command `node proxy.js`): the browser holds no provider keys. The page calls the proxy with a public-by-design `APP_SECRET` speed bump; the proxy attaches the real key from its env and forwards, with per-request shuffled provider order (Groq / Gemini / Mistral), key rotation, failover, and a per-IP rate cap. It also keeps one AISStream websocket open and answers `/ships` with the latest vessels per port box.
    - Env: `APP_SECRET`, `GEMINI_KEYS`, `GROQ_KEYS`, `MISTRAL_KEYS` (comma-separated pools), `AISSTREAM_KEY` (optional; without it `/ships` answers 503).
-3. **Daily refresh** (GitHub Actions, 03:30 UTC, `.github/workflows/refresh.yml` -> `automate.mjs`): India trade values (Comtrade), description cleanup, OFAC + EU sanctions refresh, watch of all official source pages, rebuild `index.html`, safety checks, commit only if changed. Render redeploys on the commit.
+3. **Daily refresh** (GitHub Actions, 03:30 UTC, `.github/workflows/refresh.yml` -> `automate.mjs`): India trade values (Comtrade), description cleanup, OFAC + EU sanctions refresh, watch of all official source pages, rebuild the hosted and offline pages, safety checks, commit only if changed. Render redeploys on the commit.
    - Repo secret needed: `COMTRADE_KEY`. Optional: `GEMINI_API_KEY` for the AI jobs below.
 
 ## AI rules
@@ -52,9 +52,13 @@ Live: https://finder-hsn-codee.onrender.com/
 WCO HS 2022, India CBIC/GST notifications + DGFT, USITC HTS, EU TARIC/CN, UK Trade Tariff, Korea Customs, Canada CBSA, Japan Customs, Australia Home Affairs, Brazil NCM, Taiwan Customs, NZ Customs, Norway Tolletaten, Singapore Customs, Israel Tax Authority, Mexico SNICE, Hong Kong C&ED, South Africa SARS, Peru SUNAT, China Customs, UAE FCA, India SAC; UN Comtrade (trade values/partners), OFAC + EU + UN + UK sanctions lists, DGFT SCOMET/Appendix-3, anti-dumping (DGTR/CBIC), RoDTEP notification rates, IPA port statistics, NGA World Port Index, AISStream (live AIS), Open-Meteo (port weather), Frankfurter/ECB (exchange rates).
 
 ## Repo layout
-- `index.html` - the complete finder as one file (what the static site serves)
+- `index.html` - hosted shell; `data.<hash>.js` - versioned data; `offline.html` - self-contained offline copy
 - `src/` - dataset + app source (data chunks, GST/trade/market/sanctions/FTA/port maps, aliases, app.js, style.css)
-- `build.mjs` - rebuilds `index.html` from `src/` (`node build.mjs`)
+- `build.mjs` - rebuilds both pages and the versioned data from `src/` (`node build.mjs`)
 - `automate.mjs`, `refresh.mjs`, `sanctions-refresh.mjs`, `comtrade-*.mjs`, `compute-sancgap.mjs`, `gemini.mjs`, `ai-agent.mjs`, `apply-gst.mjs`, `monitor.mjs` - the daily pipeline and data jobs
 - `proxy.js` - the AI + AIS proxy web service (see above)
 - `render.yaml` - blueprint for the static site
+
+## Hosted speed and offline copy
+
+`index.html` is a small shell. It loads the versioned `data.<hash>.js` code dataset before search starts. `sw.js` caches that exact data file for repeat visits while allowing the HTML shell to refresh on each visit. For a self-contained offline copy, download `offline.html` instead; it still includes the code dataset inline. The offline copy cannot use the hosted service worker; live AI and ship feeds still need a connection. Run `node build.mjs` after editing source to regenerate both builds. The manifest and icons enable installation on supported browsers; the site still works without installation.

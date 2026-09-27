@@ -5,7 +5,7 @@
 // What it deliberately does NOT touch:
 //   - GST rates (CBIC publishes no stable machine-readable feed; manual update)
 //   - sanctions lists (formats vary; manual update - see README)
-// If trade values change, it rebuilds index.html and commits both files back
+// If trade values change, it rebuilds the hosted shell, versioned dataset and offline copy, then commits them back
 // to this repo via the GitHub API, which auto-redeploys the Render static site.
 import fs from 'fs';
 import zlib from 'zlib';
@@ -164,7 +164,9 @@ export async function runRefresh() {
   if (DRY) { log('RENDER_DRY=1 - not writing'); return { changed: true, year, dry: true, tradeChanged, cleanup: cleanReport }; }
   const { execSync } = await import('child_process');
   execSync('node build.mjs', { stdio: 'inherit' });
-  commitQueue.push({ path: 'index.html', content: fs.readFileSync('index.html', 'utf8') });
+  for (const path of ['index.html', 'offline.html', ...fs.readdirSync('.').filter((f) => /^data\.[0-9a-f]{12}\.js$/.test(f))]) {
+    commitQueue.push({ path, content: fs.readFileSync(path, 'utf8') });
+  }
   if (!TOKEN || !REPO) { log('GITHUB_TOKEN/GITHUB_REPO not set - rebuilt locally only'); return { changed: true, year, committed: false, cleanup: cleanReport }; }
   const sha = await commitFiles(commitQueue, 'Data refresh: ' + messages.join('; '));
   log('committed', sha, '- Render will auto-redeploy');
