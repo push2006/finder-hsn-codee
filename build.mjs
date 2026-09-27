@@ -1,10 +1,10 @@
-// Builds index.html (the offline single-file finder) from src/.
+// Builds a hosted shell, versioned dataset, and offline single-file finder from src/.
 // Node port of the original build script - plain concatenation, no dependencies.
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const SRC = path.join(process.cwd(), 'src');
-const pako = fs.readFileSync(path.join(process.cwd(), 'vendor', 'pako-inflate.min.js'), 'utf8');
 const PAKO = fs.readFileSync(path.join(process.cwd(), 'vendor', 'pako-inflate.min.js'), 'utf8');
 const OUT = path.join(process.cwd(), 'index.html');
 
@@ -58,11 +58,35 @@ if (!appImports) throw new Error('build: app.js import lines not found');
 
 const css = read('style.css');
 
+const dataJs = `var DATA_B64 = ${JSON.stringify(dataB64)};\n${gst}\n${trade}\n${trade6}\n${tradepartners}\n${marketexp}\n${marketdata}\n${worldports}\n${sancgap}\n${tradetrend}\n${tradeseason}\n${docs}\n${sancz}\n${add}\n${certs}\n${fta}\n${rodtep}\n${scomet}\n${alias}\n${hscorr}\n${sanc}\n`;
+const dataVersion = crypto.createHash('sha256').update(dataJs).digest('hex').slice(0, 12);
+const dataName = 'data.' + dataVersion + '.js';
+fs.writeFileSync(path.join(process.cwd(), dataName), dataJs);
+for (const f of fs.readdirSync(process.cwd())) if (/^data\.[0-9a-f]{12}\.js$/.test(f) && f !== dataName) fs.rmSync(f);
+// Network-first HTML, immutable versioned code data. Old deployments never pin stale UI.
+const sw = `/* Copyright (c) 2026 Push. */
+const CACHE = 'hsn-data-${dataVersion}';
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.add('./data.${dataVersion}.js')).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('hsn-data-') && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  const url = new URL(event.request.url);
+  if (url.pathname.endsWith('/data.${dataVersion}.js')) {
+    event.respondWith(caches.match(event.request).then((hit) => hit || fetch(event.request)));
+  }
+});
+`;
+fs.writeFileSync(path.join(process.cwd(), 'sw.js'), sw);
+
 const doc = `<!doctype html>
 <!--
-  Worldwide HSN Code Finder - offline single-file build
+  Worldwide HSN Code Finder - hosted app and offline build
   Copyright (c) 2026 Push. All rights reserved.
-  Plain HTML/CSS/JavaScript. No frameworks, no third-party runtime code.
+  Plain HTML/CSS/JavaScript. No frameworks.
   Tariff descriptions and duty rates are compiled from the official public
   government and WCO sources credited in the app's Sources section.
 -->
@@ -76,6 +100,8 @@ const doc = `<!doctype html>
 <meta property="og:description" content="Find the right customs code for any product across 22 official tariff systems, with duty rates, trade data and export documents.">
 <meta property="og:type" content="website">
 <link rel="canonical" href="https://finder-hsn-codee.onrender.com/">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#edf1f7">
 <style>
 ${css}
 </style>
@@ -83,34 +109,27 @@ ${css}
 <body>
 <div id="root"></div>
 <script>
-${pako}
-var DATA_B64 = "${dataB64}";
-${gst}
-${trade}
-${trade6}
-${tradepartners}
-${marketexp}
-${marketdata}
-${worldports}
-${sancgap}
-${tradetrend}
-${tradeseason}
-${docs}
-${sancz}
-${add}
-${certs}
-${fta}
-${rodtep}
-${scomet}
-${alias}
-${hscorr}
-${sanc}
+${PAKO}
 </script>
 <script>
 ${app}
 </script>
 <script>
-boot(document.getElementById('root'));
+// Show the interface immediately; fetch the large code database only when needed.
+(function () {
+  const root = document.getElementById('root');
+  root.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading trade codes... The first visit may take a moment.</p></div></div>';
+  const data = document.createElement('script');
+  data.src = './data.${dataVersion}.js';
+  data.onload = function () { boot(root); };
+  data.onerror = function () {
+    root.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p>Code data did not load. Check your connection and reload this page.</p></div></div>';
+  };
+  document.head.appendChild(data);
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname === 'finder-hsn-codee.onrender.com') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+})();
 </script>
 </body>
 </html>
@@ -118,5 +137,11 @@ boot(document.getElementById('root'));
 // Final leak check: no TS export/import syntax may survive into the bundle.
 if (/export (const|function)/.test(doc)) throw new Error('build: TS export leaked into bundle');
 if (/^import /m.test(app)) throw new Error('build: import line leaked into bundle');
+// Preserve the original downloadable single-file workflow separately from the
+// faster hosted shell. Both are generated from the same app source and dataset.
+const offlineDoc = doc.replace('<link rel="manifest" href="./manifest.webmanifest">', '')
+  .replace(/<script>\n\/\/ Show the interface immediately;[\s\S]*?\n<\/script>/, `<script>\n${dataJs}\nboot(document.getElementById('root'));\n</script>`);
+if (offlineDoc.includes('data.src =')) throw new Error('offline build still depends on data.js');
+fs.writeFileSync(path.join(process.cwd(), 'offline.html'), offlineDoc);
 fs.writeFileSync(OUT, doc);
-console.log('written', OUT, fs.statSync(OUT).size);
+console.log('written', OUT, fs.statSync(OUT).size, dataName, fs.statSync(dataName).size, 'version', dataVersion);
