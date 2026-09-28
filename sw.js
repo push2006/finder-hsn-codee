@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Push. */
-const CACHE = 'hsn-data-137ad23cd4ea';
+const CACHE = 'hsn-data-37c269bac3c9';
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.add('./data.137ad23cd4ea.js')).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.add('./data.37c269bac3c9.js')).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('hsn-data-') && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
@@ -9,7 +9,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   const url = new URL(event.request.url);
-  if (url.pathname.endsWith('/data.137ad23cd4ea.js')) {
+  if (url.pathname.endsWith('/data.37c269bac3c9.js')) {
     event.respondWith(caches.match(event.request).then((hit) => hit || fetch(event.request)));
   }
 });
