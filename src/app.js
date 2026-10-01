@@ -4508,11 +4508,15 @@ export function boot(rootEl) {
       el('theme-toggle').setAttribute('aria-pressed', String(V.dark));
       try { localStorage.setItem('hsn-dark', String(V.dark)); } catch { /* storage disabled */ }
     });
-    const m = location.hash.match(/#code=(\d+):(\d+)/);
-    if (m) {
-      const i = S.db.keyToIdx.get(Number(m[1]) + ':' + m[2]);
-      if (i !== undefined) { S.sel = i; V.dIdx = i; }
-    }
+    const syncHash = () => {
+      const m = location.hash.match(/^#code=(\d+):(\d+)$/);
+      const i = m ? S.db.keyToIdx.get(Number(m[1]) + ':' + m[2]) : undefined;
+      if (i !== undefined) {
+        if (S.sel !== i || S.cmpA !== null || S.showList) openEntry(i);
+      } else if (S.sel !== null || S.cmpA !== null || S.showList) back();
+    };
+    window.addEventListener('hashchange', syncHash);
+    syncHash();
     render();
   }).catch((e) => {
     rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><div class="page-pad"><p>Could not load the dataset in this browser: ' + esc(String(e)) + '</p></div></div></div>';
