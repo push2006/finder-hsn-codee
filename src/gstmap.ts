@@ -1,6 +1,15 @@
 // India GST rate map (IGST) from Notification No. 9/2025-Integrated Tax (Rate), 17 Sep 2025 (GST 2.0).
+// Beverage mappings amended by Notification 01/2026-Integrated Tax (Rate), 30 Apr 2026, effective 1 May 2026; G.S.R. 337(E), 6 May 2026.
+// Sources: https://caalley.com/gst26/01-2026-ITR-Eng.pdf (notification mirror); https://egazette.gov.in/WriteReadData/2026/272279.pdf (official corrigendum).
 // Keys: 8/6/4-digit codes, whole-chapter 2-digit codes, and "*" for the residual 18% entry.
 export const GST_MAP: Record<string, [string, string]> = {
+  "22029921": ["5%", "Fruit pulp or fruit juice based drinks [other than carbonated fruit drinks or carbonated beverages with fruit juice]"],
+  "22029929": ["5%", "Fruit pulp or fruit juice based drinks [other than carbonated fruit drinks or carbonated beverages with fruit juice]"],
+  "22029931": ["5%", "Beverages containing milk"],
+  "22029939": ["5%", "Beverages containing milk"],
+  "22029991": ["40%", "Other non-alcoholic beverages [other than those specified in Schedule I], including caffeinated beverages"],
+  "22029999": ["40%", "Other non-alcoholic beverages [other than those specified in Schedule I], including caffeinated beverages"],
+
   "01012100": ["5%", "Live horses"],
   "010129": ["5%", "Live horses"],
   "0202": ["5%", "All goods, other than fresh or chilled, pre-packaged and labelled"],

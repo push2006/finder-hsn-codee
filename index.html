@@ -492,10 +492,10 @@ html.dark-mode .fta-t td.num, html.dark-mode .sl-note, html.dark-mode .duty-val.
 const OWNER = 'Push';
 const SYS = [
   { tag: 'HS', name: 'WCO HS 2022 (international)', src: 'UN Comtrade extraction of the WCO HS 2022 nomenclature', url: 'https://comtrade.un.org/data/doc/api/' },
-  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025, and basic customs duty (BCD) standard rates from the CBIC Customs Tariff First Schedule as on 30.06.2025 (11,387 lines; statutory rates - effective rates vary by exemption notification)', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
+  { tag: 'IN', name: 'India HSN (GST goods master)', src: 'Government-format HSN_SAC workbook, mirrored 22 Sep 2026 from the official HSN/SAC workbook, joined with GST 2.0 rates from Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025, with beverage code mappings amended by Notification 01/2026-Integrated Tax (Rate), effective 1 May 2026, and corrigendum 6 May 2026, and basic customs duty (BCD) standard rates from the CBIC Customs Tariff First Schedule as on 30.06.2025 (11,387 lines; statutory rates - effective rates vary by exemption notification)', url: 'https://cbic-gst.gov.in/gst-goods-services-rates.html' },
   { tag: 'US', name: 'US HTS (Harmonized Tariff Schedule)', src: 'USITC official HTS export, includes general duty rates', url: 'https://hts.usitc.gov/' },
   { tag: 'EU', name: 'EU CN 2026 (Combined Nomenclature)', src: 'Official Journal Regulation (EU) 2025/1926 (CN 2026), conventional (MFN) duty rates baked for 9,529 of 9,791 eight-digit lines - seasonal footnote rates and tariff-quota-only lines left unbaked', url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202501926' },
-  { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Global Tariff official dataset (Department for Business and Trade), version v4.0.1608, third-country (MFN) duty baked for 14,907 declarable ten-digit lines - conditional relief rates and suspensions excluded', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.1608/metadata?format=html' },
+  { tag: 'UK', name: 'UK Integrated Online Tariff', src: 'UK Global Tariff official dataset (Department for Business and Trade), version v4.0.1608 (code and third-country duty data verified unchanged through v4.0.1613), third-country (MFN) duty baked for 14,907 declarable ten-digit lines - conditional relief rates and suspensions excluded', url: 'https://data.api.trade.gov.uk/v1/datasets/uk-tariff-2021-01-01/versions/v4.0.1608/metadata?format=html' },
   { tag: 'KR', name: 'Korea HSK 2026', src: 'Korea Customs Service official HS code workbook, 1 Jan 2026, with basic duty rates (기본세율) from the KCS CLIP tariff rate table, applicable year 2026 (11,326 of 11,327 ten-digit lines)', url: 'https://www.data.go.kr/data/15049722/fileData.do' },
   { tag: 'CA', name: 'Canada Customs Tariff 2026', src: 'Canada Border Services Agency official 2026 tariff by chapter', url: 'https://www.cbsa-asfc.gc.ca/trade-commerce/tariff-tarif/2026/menu-eng.html' },
   { tag: 'JP', name: 'Japan Tariff Schedule 2026', src: 'Japan Customs official tariff schedule, 1 Jan 2026', url: 'https://www.customs.go.jp/english/tariff/2026_01_01/index.htm' },
@@ -504,7 +504,7 @@ const SYS = [
   { tag: 'TW', name: 'Taiwan Customs Import Tariff', src: 'Taiwan Customs Administration official import duty open data (data.gov.tw dataset 80871)', url: 'https://data.gov.tw/en/datasets/80871' },
   { tag: 'NZ', name: 'New Zealand Working Tariff (CusMod)', src: 'New Zealand Customs Service official CusMod tariff data files, updated nightly', url: 'https://www.customs.govt.nz/business/tariffs/tariff-classifications-and-rates/' },
   { tag: 'NO', name: 'Norway Customs Tariff (Tolltariffen)', src: 'Norwegian Customs (Tolletaten) official open data: tolltariffstruktur nomenclature + tollavgiftssats ordinary customs duty rates (ordinær toll, country group TALL), current 23 Sep 2026 - all 7,436 eight-digit lines baked; EFTA/EU, GSP and other preferential rates not baked', url: 'https://data.toll.no/no/dataset/tolltariffstruktur' },
-  { tag: 'SG', name: 'Singapore STCCED 2022', src: 'Singapore Customs official Singapore Trade Classification, Customs and Excise Duties 2022 (excise applies only to alcohol, tobacco, fuel and motor vehicles, so most lines show no duty)', url: 'https://www.customs.gov.sg/businesses/harmonized-system-hs-classification-of-goods/' },
+  { tag: 'SG', name: 'Singapore STCCED 2022', src: 'Singapore Customs official Singapore Trade Classification, Customs and Excise Duties 2022 (excise applies only to alcohol, tobacco, fuel and motor vehicles, so most lines show no duty)', url: 'https://www.customs.gov.sg/doing-business/business-resources/hs-classification-of-goods/understanding-hs-classification/' },
   { tag: 'IL', name: 'Israel Customs Tariff and Purchase Tax', src: 'Israel Tax Authority official customs book open dataset (data.gov.il, updated 21 Sep 2026), English edition', url: 'https://data.gov.il/dataset/customsbook' },
   { tag: 'MX', name: 'Mexico TIGIE (LIGIE unified)', src: 'Secretaria de Economia official unified LIGIE text with NICO statistical lines, 28 Jul 2025 base', url: 'https://www.snice.gob.mx/cs/avi/snice/ligie.info22.html' },
   { tag: 'HK', name: 'Hong Kong HKHS 2026', src: 'Census and Statistics Department official Hong Kong Harmonized System 2026 CSV via data.gov.hk, bilingual. Hong Kong is a free port - no general import duty (excise applies only to liquor, tobacco, hydrocarbon oil and methyl alcohol), so lines show no duty', url: 'https://data.gov.hk/en-data/dataset/hk-censtatd-tablechart-b2xx0023' },
@@ -888,6 +888,10 @@ async function decodeData() {
   }
   throw new Error('This browser is too old to open the data file - please update it or try another browser.');
 }
+
+// USITC 2026 HTS Revision 20 (checked 30 Sep 2026): Chapter 97 rows omitted by the core import.
+// https://hts.usitc.gov/reststop/currentRelease and /reststop/exportList?from=9705&to=9707&format=JSON&styles=false
+const US_CH97_SUPPLEMENT = [[2,"97051000","Collections and collectors’ pieces of archaeological, ethnographic or historical interest","9705","97","Free"],[2,"9705100010","Archaeological pieces of a kind described in statistical note 1 to this chapter","97051000","97",""],[2,"9705100020","Ethnographic pieces of a kind described in statistical note 1 to this chapter","97051000","97",""],[2,"9705100090","Other","97051000","97",""],[2,"9705210000","Human specimens and parts thereof","9705","97","Free"],[2,"9705220000","Extinct or endangered species and parts thereof","9705","97","Free"],[2,"9705290000","Other","9705","97","Free"],[2,"97053100","Of an age exceeding 100 years","9705","97","Free"],[2,"9705310001","Coins made prior to the 14th century and not known to be the direct products of excavations, finds or archaeological sites","97053100","97",""],[2,"9705310010","Gold","97053100","97",""],[2,"9705310040","Other","97053100","97",""],[2,"9705310050","Gold","97053100","97",""],[2,"9705310065","Other","97053100","97",""],[2,"97053900","Other","9705","97","Free"],[2,"9705390010","Gold","97053900","97",""],[2,"9705390040","Other","97053900","97",""],[2,"9706","Antiques of an age exceeding 100 years:",null,"97",""],[2,"97061000","Of an age exceeding 250 years","9706","97","Free"],[2,"9706100020","Silverware","97061000","97",""],[2,"9706100040","Furniture","97061000","97",""],[2,"9706100060","Other","97061000","97",""],[2,"97069000","Other","9706","97","Free"],[2,"9706900020","Silverware","97069000","97",""],[2,"9706900040","Furniture","97069000","97",""],[2,"9706900060","Other","97069000","97",""]];
 
 function loadDb(entries) {
   entries.forEach((e) => {
@@ -1445,7 +1449,8 @@ function gstRowHtml(code) {
   const g = gstFor(code);
   if (!g) return '<div><dt>GST rate</dt><dd>Not found in the GST 2.0 rate schedules - check the official CBIC repository: <a href="https://taxinformation.cbic.gov.in/" target="_blank" rel="noreferrer">taxinformation.cbic.gov.in</a></dd></div>';
   const residual = g[1].indexOf('not specified in Schedule') >= 0;
-  return '<div><dt>GST rate (IGST)</dt><dd><strong>' + esc(g[0]) + '</strong>' + (residual ? ' - residual rate for goods not specified in the GST 2.0 rate schedules' : '') + ' - ' + esc(g[1].length > 110 ? g[1].slice(0, 110) + '...' : g[1]) + ' <span class="muted">From Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025. Exempt goods are on a separate list - <a href="https://cbic-gst.gov.in/gst-goods-services-rates.html" target="_blank" rel="noreferrer">verify on CBIC</a>.</span></dd></div>';
+  const amended = ['22029921', '22029929', '22029931', '22029939', '22029991', '22029999', '22029100'].includes(code);
+  return '<div><dt>GST rate (IGST)</dt><dd><strong>' + esc(g[0]) + '</strong>' + (residual ? ' - residual rate for goods not specified in the GST 2.0 rate schedules' : '') + ' - ' + esc(g[1].length > 110 ? g[1].slice(0, 110) + '...' : g[1]) + ' <span class="muted">From Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025.' + (amended ? ' Beverage code mapping amended by Notification 01/2026-Integrated Tax (Rate), effective 1 May 2026, and corrigendum 6 May 2026.' : '') + ' Exempt goods are on a separate list - <a href="https://cbic-gst.gov.in/gst-goods-services-rates.html" target="_blank" rel="noreferrer">verify on CBIC</a>.</span></dd></div>';
 }
 
 function linkPanelHtml(e, idx) {
@@ -1816,7 +1821,7 @@ const PORTAL_LINKS = [
   [{ label: 'Taiwan Customs portal', url: 'https://portal.sw.nat.gov.tw/PGAE00' }],
   [{ label: 'NZ Customs tariff', url: 'https://www.customs.govt.nz/business/tariffs/' }],
   [{ label: 'Tolltariffen (Norway)', url: 'https://www.toll.no/en/corporate/import/customs-tariff/' }],
-  [{ label: 'Singapore Customs HS', url: 'https://www.customs.gov.sg/businesses/harmonized-system-hs-classification-of-goods/' }],
+  [{ label: 'Singapore Customs HS', url: 'https://www.customs.gov.sg/doing-business/business-resources/hs-classification-of-goods/understanding-hs-classification/' }],
   [{ label: 'Israel Tax Authority', url: 'https://www.gov.il/en/departments/israel_tax_authority/govil-landing-page' }],
   [{ label: 'Mexico LIGIE', url: 'https://www.snice.gob.mx/cs/avi/snice/ligie.info22.html' }],
 ];
@@ -4394,7 +4399,7 @@ function searchIdleHtml() {
     '<h3>Sources</h3><ul>' + SYS.map((sy) => '<li><strong>' + sy.tag + '</strong>: ' + esc(sy.src) + '. <a href="' + sy.url + '" target="_blank" rel="noreferrer">Reference</a></li>').join('') + '</ul>' +
     '<h3>Data freshness - last verified</h3><p class="muted">Data fingerprint (SHA-256, first 16 characters): <span id="data-fingerprint">' + esc(V.dataFingerprint || 'checking...') + '</span>. Use it to tell two builds apart; it does not prove sources are current.</p><ul>' + [
       ['Sanctions - OFAC, EU, UFLPA and vessels', SANCTIONS_META.checked + ' (auto-checked daily)'],
-      ['India GST rates', 'Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025 - GST 2.0'],
+      ['India GST rates', 'Notification 9/2025-Integrated Tax (Rate), 17 Sep 2025 - GST 2.0; beverage mappings updated for Notification 01/2026, effective 1 May 2026, and 6 May corrigendum (other goods not re-audited)'],
       ['India trade partners and values', 'UN Comtrade, calendar year ' + TRADE_PARTNERS_YEAR],
       ['Top world markets', 'UN Comtrade, ' + MARKET_DATA_YEAR],
       ['Trade trend', 'UN Comtrade, ' + TRADE_TREND_YEARS[0] + ' to ' + TRADE_TREND_YEARS[TRADE_TREND_YEARS.length - 1]],
@@ -4951,8 +4956,10 @@ if (typeof window !== 'undefined') {
 }
 
 function boot(rootEl) {
-  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading 340,232 codes...</p></div></div>';
+  rootEl.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading trade codes...</p></div></div>';
   decodeData().then((entries) => {
+    const seenUS = new Set(entries.filter((e) => e[0] === 2).map((e) => e[1]));
+    for (const row of US_CH97_SUPPLEMENT) if (!seenUS.has(row[1])) entries.push(row);
     S.db = loadDb(entries);
     S.changes = checkChanges(S.db, Array.from(new Set(loadKeys('hsn-favs').concat(loadKeys('hsn-shortlist')))));
     document.documentElement.classList.toggle('dark-mode', V.dark);
@@ -4983,7 +4990,7 @@ function boot(rootEl) {
   const root = document.getElementById('root');
   root.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p class="muted">Loading trade codes... The first visit may take a moment.</p></div></div>';
   const data = document.createElement('script');
-  data.src = './data.bae29495cf6f.js';
+  data.src = './data.99ccac6947ad.js';
   data.onload = function () { boot(root); };
   data.onerror = function () {
     root.innerHTML = '<div class="app-shell"><div class="app-head"><h1 class="app-title">Worldwide HSN Code Finder</h1><p>Code data did not load. Check your connection and reload this page.</p></div></div>';
