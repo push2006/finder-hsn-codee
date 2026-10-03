@@ -2,7 +2,7 @@
 // Source: UN Comtrade API (comtradeapi.un.org), reporter 699 (India), flows M (imports, CIF)
 // and X (exports, FOB), values in USD, top 5 partners each way. Quantities are the
 // world-total supplementary quantity (WCO units) and net weight; estimated flags kept.
-// Baked 2026-10-02 - coverage 42 codes, grows daily.
+// Baked 2026-10-03 - coverage 42 codes, grows daily.
 export const TRADE_PARTNERS_YEAR = 2025;
 export const TRADE_PARTNERS: Record<string, { x: [string, number, number?][]; m: [string, number, number?][]; gx?: [string, number][]; gm?: [string, number][]; xq?: [number, string]; mq?: [number, string]; xn?: [number, boolean]; mn?: [number, boolean] }> = {
   '020230': { x: [["Egypt", 664431350], ["Malaysia", 656245997], ["Viet Nam", 623523680], ["United Arab Emirates", 366869647], ["Saudi Arabia", 340857272]], m: [], xq: [1210336878, "kg"], xn: [1210336878, false] },
