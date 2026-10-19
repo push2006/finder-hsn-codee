@@ -7,9 +7,9 @@
   "changedAt": "2026-10-08"
  },
  "IN": {
-  "fails": 2,
+  "fails": 0,
   "sig": "h:Mon, 21 Sep 2026 10:29:12 GMT",
-  "cand": "h:Thu, 15 Oct 2026 18:53:27 GMT",
+  "cand": "h:Thu, 15 Oct 2026 18:53:06 GMT",
   "n": 1,
   "changedAt": "2026-09-29"
  },
@@ -23,18 +23,18 @@
  "EU": {
   "fails": 0,
   "sig": "s:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "cand": "s:2eb39e6adb88d916b0e588a4f960ba6e5fdb1694099e9643d96397a2c40d2632",
-  "n": 1
+  "cand": null,
+  "n": 0
  },
  "UK": {
   "fails": 0,
-  "sig": "d:f959480aa821c5629d5a8667f60b521db1970f20988f2cca2f4c88b39080bdf5",
-  "cand": "d:59fa21397641b377a0fad3b3a7bbd0963f1654b5ef9612a386b816527eee587b",
-  "n": 1,
-  "changedAt": "2026-10-03"
+  "sig": "d:59fa21397641b377a0fad3b3a7bbd0963f1654b5ef9612a386b816527eee587b",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-10-19"
  },
  "KR": {
-  "fails": 0,
+  "fails": 1,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
   "cand": null,
   "n": 0,
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:5c6531493f84420eb3c4ec1e15d784e6718dba1c510a75e9ec28d8334501f2fa",
+  "cand": "s:9839e62806241b9cdb06229cd1adcf82a7ceeec3ad6205d900f766236dcc67db",
   "n": 1
  },
  "NZ": {
@@ -87,8 +87,8 @@
  "SG": {
   "fails": 0,
   "sig": "h:W/\"6bd23b30f2d004b9bfcf2a3776ad40cb\"",
-  "cand": null,
-  "n": 0,
+  "cand": "h:W/\"12c36417af8281bd3a37485defe76e8e\"",
+  "n": 1,
   "changedAt": "2026-10-17"
  },
  "IL": {
@@ -122,10 +122,10 @@
  },
  "PE": {
   "fails": 0,
-  "sig": "s:f2050c88e79c16534d535abe9e73e52c685f0f80dd148d8272b7ebd4e223757c",
-  "cand": "s:f55fb96d28d504ab00c70c6a99a9cbf0a3753e1b0bfff003bcaa24ce001791ce",
-  "n": 1,
-  "changedAt": "2026-10-17"
+  "sig": "s:f55fb96d28d504ab00c70c6a99a9cbf0a3753e1b0bfff003bcaa24ce001791ce",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-10-19"
  },
  "SAC": {
   "fails": 0,
@@ -135,10 +135,10 @@
  },
  "CN": {
   "fails": 0,
-  "sig": "h:\"d8eb88eaf64288d8208f0ba898f8093b-gzip\"",
-  "cand": "h:\"9bdeea4d868eb314d9e4e06cd12286cf-gzip\"",
-  "n": 1,
-  "changedAt": "2026-10-07"
+  "sig": "h:\"9bdeea4d868eb314d9e4e06cd12286cf-gzip\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-10-19"
  },
  "AE": {
   "fails": 8
