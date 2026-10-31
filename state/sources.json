@@ -9,7 +9,7 @@
  "IN": {
   "fails": 0,
   "sig": "h:Thu, 15 Oct 2026 18:53:06 GMT",
-  "cand": "h:Fri, 23 Oct 2026 15:16:50 GMT",
+  "cand": "h:Fri, 23 Oct 2026 14:59:27 GMT",
   "n": 1,
   "changedAt": "2026-10-20"
  },
@@ -29,8 +29,8 @@
  "UK": {
   "fails": 0,
   "sig": "d:bede1c6afdf4e813479beed823696bba769e36264940ea2f95d998e8ba422dc7",
-  "cand": null,
-  "n": 0,
+  "cand": "d:536bbe012e8b35834c56ef3d77512ef793bbe17035f6953480f3adc962164b28",
+  "n": 1,
   "changedAt": "2026-10-30"
  },
  "KR": {
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:6e01ab45d3d3fa35aee858491a948d224339210c38a03e5173ee3d9fb65f9b4c",
+  "cand": "s:90790f546080635d4e4344605b5ccea1eeb2eebbcb0aee48aa6708edbd31b233",
   "n": 1
  },
  "NZ": {
@@ -86,10 +86,10 @@
  },
  "SG": {
   "fails": 0,
-  "sig": "h:W/\"12c36417af8281bd3a37485defe76e8e\"",
-  "cand": "h:W/\"c98768f1d18acd47e9e0324881507713\"",
-  "n": 1,
-  "changedAt": "2026-10-20"
+  "sig": "h:W/\"c98768f1d18acd47e9e0324881507713\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-10-31"
  },
  "IL": {
   "fails": 8
@@ -136,7 +136,7 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"9bdeea4d868eb314d9e4e06cd12286cf-gzip\"",
-  "cand": "h:\"049f731f42dfdc5b8bf8a21d7d423265-gzip\"",
+  "cand": "h:\"95fcf4b89cbba8a5861d3b175a72a534-gzip\"",
   "n": 1,
   "changedAt": "2026-10-19"
  },
