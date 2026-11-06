@@ -28,15 +28,15 @@
  },
  "UK": {
   "fails": 0,
-  "sig": "d:60ee9dbc2e590d125d2eb6314c281caf0cd948c245fbe1e6761657ee5ef4a917",
-  "cand": "d:858bc187072782e91b888df50f18563a9e593c9a0727e8b649889f3f3e3d588f",
-  "n": 1,
-  "changedAt": "2026-11-02"
+  "sig": "d:858bc187072782e91b888df50f18563a9e593c9a0727e8b649889f3f3e3d588f",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-06"
  },
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:10972d08f9e80d2009cd2ca1d80d1beabdbbcdd21c621be9c677494b56a3e156",
+  "cand": "s:540e2b7e9af244c3fc9cbe9b219633e25ec05a81957a4c5716773936ff7de91c",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:f7351376aff90d08c793503805a6c8f22600f1d33ec9fd8e0e25f98bf5d42e05",
+  "cand": "s:9805c1cbf84310a1974b3333a728490a8affdcc448a834592e19d430b5b03280",
   "n": 1
  },
  "NZ": {
@@ -88,7 +88,7 @@
  "SG": {
   "fails": 0,
   "sig": "h:W/\"883053122d3d8cfa2bb891a062d9b488\"",
-  "cand": "h:W/\"74449add0efd5e4b8993ffba8d6d5b4a\"",
+  "cand": "h:W/\"d113f5762edc7747351da9ab3c75445b\"",
   "n": 1,
   "changedAt": "2026-11-03"
  },
@@ -96,7 +96,7 @@
   "fails": 8
  },
  "MX": {
-  "fails": 0,
+  "fails": 1,
   "sig": "s:e84c28b33303ac146da7f89e5a430a15654b04b37fb64706d8041ffbe933a030",
   "cand": null,
   "n": 0
@@ -117,16 +117,16 @@
  "ZA": {
   "fails": 0,
   "sig": "h:\"6ad0d2d1-2b87f6\"",
-  "cand": null,
-  "n": 0,
+  "cand": "h:\"6aec89ec-2b87fc\"",
+  "n": 1,
   "changedAt": "2026-10-17"
  },
  "PE": {
   "fails": 0,
-  "sig": "s:f5d91f72c372bce12411dec6e9dea09e320c6c444567640da83167dd7abb9ec9",
-  "cand": "s:a7ed6ab037c54907a4398ad61ff3f197a83dda4d4a8d39228c40fc6b8a519715",
-  "n": 1,
-  "changedAt": "2026-10-30"
+  "sig": "s:a7ed6ab037c54907a4398ad61ff3f197a83dda4d4a8d39228c40fc6b8a519715",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-06"
  },
  "SAC": {
   "fails": 0,
@@ -137,7 +137,7 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"9bdeea4d868eb314d9e4e06cd12286cf-gzip\"",
-  "cand": "h:\"0be351cdb441ecf0f19486d43d629aa5-gzip\"",
+  "cand": "h:\"cad7710f56d28714975e64216d14373e-gzip\"",
   "n": 1,
   "changedAt": "2026-10-19"
  },
