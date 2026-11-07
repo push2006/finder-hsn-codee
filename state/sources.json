@@ -36,7 +36,7 @@
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:540e2b7e9af244c3fc9cbe9b219633e25ec05a81957a4c5716773936ff7de91c",
+  "cand": "s:01f4a0faf63bb3e93d97dfa5fe19830ad9841070b58745f8c2452314722a91c5",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:9805c1cbf84310a1974b3333a728490a8affdcc448a834592e19d430b5b03280",
+  "cand": "s:3f78414f9a0fc0f39b87f9f404aaeddf2c11d55bbcdba5f39748a38b4cd8cb3b",
   "n": 1
  },
  "NZ": {
@@ -87,16 +87,16 @@
  },
  "SG": {
   "fails": 0,
-  "sig": "h:W/\"883053122d3d8cfa2bb891a062d9b488\"",
-  "cand": "h:W/\"d113f5762edc7747351da9ab3c75445b\"",
-  "n": 1,
-  "changedAt": "2026-11-03"
+  "sig": "h:W/\"d113f5762edc7747351da9ab3c75445b\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-07"
  },
  "IL": {
   "fails": 8
  },
  "MX": {
-  "fails": 1,
+  "fails": 0,
   "sig": "s:e84c28b33303ac146da7f89e5a430a15654b04b37fb64706d8041ffbe933a030",
   "cand": null,
   "n": 0
@@ -116,10 +116,10 @@
  },
  "ZA": {
   "fails": 0,
-  "sig": "h:\"6ad0d2d1-2b87f6\"",
-  "cand": "h:\"6aec89ec-2b87fc\"",
-  "n": 1,
-  "changedAt": "2026-10-17"
+  "sig": "h:\"6aec89ec-2b87fc\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-07"
  },
  "PE": {
   "fails": 0,
@@ -137,7 +137,7 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"9bdeea4d868eb314d9e4e06cd12286cf-gzip\"",
-  "cand": "h:\"cad7710f56d28714975e64216d14373e-gzip\"",
+  "cand": "h:\"6e120d2be6e4416aba9440abfa664776-gzip\"",
   "n": 1,
   "changedAt": "2026-10-19"
  },
