@@ -2,7 +2,7 @@
  "HS": {
   "fails": 0,
   "sig": "h:\"1dd55bcf4304a66\"",
-  "cand": "s:2c2a0f1d90213ed499cdba4560a99215e00ac427b474090fe94cc8c95c9474b0",
+  "cand": "s:2c9bad7750bbfdb3bd10f2d1f76dd5ec34130ba0b4b99e5a19fa83ecf6986445",
   "n": 1,
   "changedAt": "2026-10-08"
  },
@@ -36,7 +36,7 @@
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:8217a68a46d62cb035886c3013b93082bd0961e2b35e0094d8d4c859f85229e4",
+  "cand": "s:1d737aaf32727d61585cc526ff7855200e03d811af1d2db85ba1c24de1ae8efb",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:911a199b13fdc678e51195c3a58268a1d503df606c2aa4f2e6feabfef7ea4379",
+  "cand": "s:9369aa4a07c0ea64d64e7d15e61c8f714f4ab7f189a4ccfd916f1fce1a60c7ff",
   "n": 1
  },
  "NZ": {
@@ -88,8 +88,8 @@
  "SG": {
   "fails": 0,
   "sig": "h:W/\"d113f5762edc7747351da9ab3c75445b\"",
-  "cand": null,
-  "n": 0,
+  "cand": "h:W/\"b089d4a9d0c12518e3ff73e7b3215518\"",
+  "n": 1,
   "changedAt": "2026-11-07"
  },
  "IL": {
@@ -136,10 +136,10 @@
  },
  "CN": {
   "fails": 0,
-  "sig": "h:\"6e120d2be6e4416aba9440abfa664776-gzip\"",
-  "cand": "h:\"421f0aff52c89c3ef551e39cc476167f-gzip\"",
-  "n": 1,
-  "changedAt": "2026-11-08"
+  "sig": "h:\"421f0aff52c89c3ef551e39cc476167f-gzip\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-10"
  },
  "AE": {
   "fails": 8
