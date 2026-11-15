@@ -2,15 +2,15 @@
  "HS": {
   "fails": 0,
   "sig": "h:\"1dd55bcf4304a66\"",
-  "cand": "s:a69d004b48d1c110cd298103ef8a6c5aa5e552802a24e24e4a9e36d6910085df",
+  "cand": "s:126715fb6db435752ad34c3436c513528baa517e24871f782e34cb9bb67f8d6b",
   "n": 1,
   "changedAt": "2026-10-08"
  },
  "IN": {
   "fails": 0,
   "sig": "h:Sat, 31 Oct 2026 12:20:24 GMT",
-  "cand": "h:Sat, 31 Oct 2026 12:21:20 GMT",
-  "n": 1,
+  "cand": null,
+  "n": 0,
   "changedAt": "2026-11-05"
  },
  "US": {
@@ -23,8 +23,8 @@
  "EU": {
   "fails": 0,
   "sig": "s:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "cand": "h:W/\"0x8DF41EB80151E78\"",
-  "n": 1
+  "cand": null,
+  "n": 0
  },
  "UK": {
   "fails": 0,
@@ -36,7 +36,7 @@
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:b17a306eb5147393f17f0d49d39a006d44a26eaec940b6c8691420854d540919",
+  "cand": "s:fe1d49b12122c4084f967111e62c50a25b98a945155bbf4e0ddf2573d1835c7d",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -59,7 +59,7 @@
   "n": 0
  },
  "BR": {
-  "fails": 0,
+  "fails": 1,
   "sig": "d:24508b76d240f8d6296da32739bc18a02a48f264b3060c2dd09fb41cab7b0351",
   "cand": null,
   "n": 0,
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:dd6b2f763debf27004c65b391fc6353b7642c29be08386bc21b3eac44ed31b3f",
+  "cand": "s:ebcd591f31ba64d637d5cf40f77ec6a48c8a6134fa1c3adf7c7cb9521d60950d",
   "n": 1
  },
  "NZ": {
@@ -87,10 +87,10 @@
  },
  "SG": {
   "fails": 0,
-  "sig": "h:W/\"b089d4a9d0c12518e3ff73e7b3215518\"",
-  "cand": "h:W/\"032852c65917009802a3e1ddc0a69d52\"",
-  "n": 1,
-  "changedAt": "2026-11-11"
+  "sig": "h:W/\"032852c65917009802a3e1ddc0a69d52\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-15"
  },
  "IL": {
   "fails": 8
@@ -137,7 +137,7 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"421f0aff52c89c3ef551e39cc476167f-gzip\"",
-  "cand": "h:\"49ddc1699b172e424fe5ba4c6fe59b4a-gzip\"",
+  "cand": "h:\"62dfe2dabdedb704030bfb7140f8d438-gzip\"",
   "n": 1,
   "changedAt": "2026-11-10"
  },
