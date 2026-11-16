@@ -2,15 +2,15 @@
  "HS": {
   "fails": 0,
   "sig": "h:\"1dd55bcf4304a66\"",
-  "cand": "s:126715fb6db435752ad34c3436c513528baa517e24871f782e34cb9bb67f8d6b",
+  "cand": "s:e82f179349de94a1902e74b811e184e519de2bb83a98368fa6f1980dce8e02fd",
   "n": 1,
   "changedAt": "2026-10-08"
  },
  "IN": {
   "fails": 0,
   "sig": "h:Sat, 31 Oct 2026 12:20:24 GMT",
-  "cand": null,
-  "n": 0,
+  "cand": "h:Sat, 31 Oct 2026 12:21:20 GMT",
+  "n": 1,
   "changedAt": "2026-11-05"
  },
  "US": {
@@ -36,7 +36,7 @@
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:fe1d49b12122c4084f967111e62c50a25b98a945155bbf4e0ddf2573d1835c7d",
+  "cand": "s:866b2a2693f35dd66418396b6d497fec3135cbf2cbc48e18da5591d1d5ecb7fc",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -59,7 +59,7 @@
   "n": 0
  },
  "BR": {
-  "fails": 1,
+  "fails": 0,
   "sig": "d:24508b76d240f8d6296da32739bc18a02a48f264b3060c2dd09fb41cab7b0351",
   "cand": null,
   "n": 0,
@@ -68,14 +68,14 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:ebcd591f31ba64d637d5cf40f77ec6a48c8a6134fa1c3adf7c7cb9521d60950d",
+  "cand": "s:f613ec65448769ee08d7fd053c97846c64c87ccc6eff48a09c513ba637b67725",
   "n": 1
  },
  "NZ": {
   "fails": 0,
   "sig": "s:5f395108cf19b8d78671e3843439f5607a96ebf3d748ac16960cd30e8a2f7c57",
-  "cand": null,
-  "n": 0,
+  "cand": "s:28fa5f06334106e4180a0c41935f219d472a9733b222a3fbbc692d6f76d54611",
+  "n": 1,
   "changedAt": "2026-11-14"
  },
  "NO": {
@@ -88,8 +88,8 @@
  "SG": {
   "fails": 0,
   "sig": "h:W/\"032852c65917009802a3e1ddc0a69d52\"",
-  "cand": null,
-  "n": 0,
+  "cand": "h:W/\"1708b2fb6d63b68e7aa7434d0bbed2ef\"",
+  "n": 1,
   "changedAt": "2026-11-15"
  },
  "IL": {
@@ -137,7 +137,7 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"421f0aff52c89c3ef551e39cc476167f-gzip\"",
-  "cand": "h:\"62dfe2dabdedb704030bfb7140f8d438-gzip\"",
+  "cand": "h:\"384a940bb1e74b1dcdb5108e10926d0f-gzip\"",
   "n": 1,
   "changedAt": "2026-11-10"
  },
