@@ -1,6 +1,6 @@
 {
  "HS": {
-  "fails": 7,
+  "fails": 8,
   "sig": "h:\"1dd55bcf4304a66\"",
   "cand": "s:26f65c1ef1d61f723ec1abdfb191f5a73a6d0cbbf03e9d36a45ea4d3e88e9168",
   "n": 1,
@@ -9,8 +9,8 @@
  "IN": {
   "fails": 0,
   "sig": "h:Wed, 18 Nov 2026 11:36:10 GMT",
-  "cand": "h:Wed, 18 Nov 2026 11:35:05 GMT",
-  "n": 1,
+  "cand": null,
+  "n": 0,
   "changedAt": "2026-11-23"
  },
  "US": {
@@ -29,14 +29,14 @@
  "UK": {
   "fails": 0,
   "sig": "d:a6f28413176119540660231ae223ac5983af5fb32309b45fd41b542bab849424",
-  "cand": null,
-  "n": 0,
+  "cand": "d:689bc94e569ef5c14b540eb600fe0542c8024df444a6ad6701ef9dcd6cdcdf84",
+  "n": 1,
   "changedAt": "2026-11-26"
  },
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:767ebbd1ed36d15ce153efe7970f6a2c28650ce826805114a3a80fdab6da2750",
+  "cand": "s:81e1060a7c5cb22347b15aa651634a4643ddfcb0ecf08c0c510f5900379abbd1",
   "n": 1,
   "changedAt": "2026-10-02"
  },
@@ -59,7 +59,7 @@
   "n": 0
  },
  "BR": {
-  "fails": 1,
+  "fails": 0,
   "sig": "d:753faa8a4b0d0c0b1e35c3c76a8d42bd5559e14864208abfa2dddd5bb6a7f28b",
   "cand": null,
   "n": 0,
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:ff99c8b1ac7ba2d6ccb9cf05790c3fb41cedd8875050ff8817e3127b57cbd9c0",
+  "cand": "s:78e89b0f7b76dfb8a48107b6ede78139dedb36faa3221752bf50b0f05147ffb9",
   "n": 1
  },
  "NZ": {
@@ -88,8 +88,8 @@
  "SG": {
   "fails": 0,
   "sig": "h:W/\"b50321937c1b39d209845c1061fcff2f\"",
-  "cand": null,
-  "n": 0,
+  "cand": "h:W/\"66e84b86e61c6c65fa56fd33ac3893d2\"",
+  "n": 1,
   "changedAt": "2026-11-25"
  },
  "IL": {
@@ -109,7 +109,7 @@
   "changedAt": "2026-10-30"
  },
  "HK": {
-  "fails": 0,
+  "fails": 1,
   "sig": "s:d296089fba536861fa943e5a37f8f09368419412eff0adec09a0520e5739dfe1",
   "cand": null,
   "n": 0
@@ -137,8 +137,8 @@
  "CN": {
   "fails": 0,
   "sig": "h:\"db3c5c352d59e0dc4d5c9b17f0d929ed-gzip\"",
-  "cand": "h:\"c739ffb39de88ad586adf845cd01dd55-gzip\"",
-  "n": 1,
+  "cand": null,
+  "n": 0,
   "changedAt": "2026-11-25"
  },
  "AE": {
