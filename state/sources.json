@@ -29,22 +29,22 @@
  "UK": {
   "fails": 0,
   "sig": "d:a6f28413176119540660231ae223ac5983af5fb32309b45fd41b542bab849424",
-  "cand": "d:689bc94e569ef5c14b540eb600fe0542c8024df444a6ad6701ef9dcd6cdcdf84",
+  "cand": "d:30c4e700dc326992e363ab9dd04ea3c9daece72fd6a6231e12fd90e47a30360c",
   "n": 1,
   "changedAt": "2026-11-26"
  },
  "KR": {
   "fails": 0,
   "sig": "s:cfdcc883dfc837936ba0873811ae94b072acc58b399b075497c819042cad23fa",
-  "cand": "s:81e1060a7c5cb22347b15aa651634a4643ddfcb0ecf08c0c510f5900379abbd1",
+  "cand": "s:bc1600b9e832bf7e6c470da20145150a24f0d03030e20f55148dfc58767344e0",
   "n": 1,
   "changedAt": "2026-10-02"
  },
  "CA": {
   "fails": 0,
   "sig": "s:b681bb5554a207a53a454ebe79fe6b050f4fde0315270779a4f0f97fd5310fa0",
-  "cand": null,
-  "n": 0
+  "cand": "s:052dd3a74279d76f60f62e5c45f729900a116d7be663bb716bdcc8725f75dd7e",
+  "n": 1
  },
  "JP": {
   "fails": 0,
@@ -68,7 +68,7 @@
  "TW": {
   "fails": 0,
   "sig": "s:43a6f1a482830b3cb9715f6d63e9fed51809e152c5537174ed6414be3c8aed30",
-  "cand": "s:78e89b0f7b76dfb8a48107b6ede78139dedb36faa3221752bf50b0f05147ffb9",
+  "cand": "s:016d4797b2d6417d284ab466e41ae064a1afa99ba5bd114a51368fb1a7f0edf9",
   "n": 1
  },
  "NZ": {
@@ -87,10 +87,10 @@
  },
  "SG": {
   "fails": 0,
-  "sig": "h:W/\"b50321937c1b39d209845c1061fcff2f\"",
-  "cand": "h:W/\"66e84b86e61c6c65fa56fd33ac3893d2\"",
-  "n": 1,
-  "changedAt": "2026-11-25"
+  "sig": "h:W/\"66e84b86e61c6c65fa56fd33ac3893d2\"",
+  "cand": null,
+  "n": 0,
+  "changedAt": "2026-11-28"
  },
  "IL": {
   "fails": 8
@@ -109,7 +109,7 @@
   "changedAt": "2026-10-30"
  },
  "HK": {
-  "fails": 1,
+  "fails": 0,
   "sig": "s:d296089fba536861fa943e5a37f8f09368419412eff0adec09a0520e5739dfe1",
   "cand": null,
   "n": 0
@@ -124,8 +124,8 @@
  "PE": {
   "fails": 0,
   "sig": "s:7eb7f642598d07089fc3c1dec56c21e563bcdec3a24f7fe55fabe97b7b1860ac",
-  "cand": null,
-  "n": 0,
+  "cand": "s:d62a2ea16d741029725bc651b6a25ccb67ef1af68086a1bd7515b0ba467aaad8",
+  "n": 1,
   "changedAt": "2026-11-19"
  },
  "SAC": {
